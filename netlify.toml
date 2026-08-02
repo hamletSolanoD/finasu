@@ -1,0 +1,10 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# App usa BrowserRouter (rutas como /gastos/categorias) — sin esto, refrescar
+# o entrar directo a cualquier ruta que no sea "/" daría 404 en Netlify.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
