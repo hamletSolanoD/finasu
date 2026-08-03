@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie'
+import dexieCloud from 'dexie-cloud-addon'
 import { DEFAULT_CATEGORIES } from './categories'
 import { DEFAULT_CURRENCY } from './currency'
 import { DEFAULT_EXPENSE_CATEGORIES } from './expenseCategories'
@@ -29,6 +30,14 @@ const DEFAULT_SETTINGS: AppSettings = {
   hasSeenOnboarding: false,
 }
 
+/**
+ * Paso 1 de la migración a Dexie Cloud: requireAuth queda en false a propósito,
+ * para no exigir login todavía y poder verificar en producción que la sincronización
+ * de los datos que ya existían localmente funciona bien antes de bloquear el uso
+ * de la app detrás de un login.
+ */
+const DEXIE_CLOUD_URL = 'https://zlcp5maax.dexie.cloud'
+
 class FinasuDB extends Dexie {
   products!: Table<Product, string>
   priceEntries!: Table<PriceEntry, string>
@@ -48,7 +57,7 @@ class FinasuDB extends Dexie {
   projectPriceEntries!: Table<ProjectPriceEntry, string>
 
   constructor() {
-    super('finasu')
+    super('finasu', { addons: [dexieCloud] })
 
     this.version(1).stores({
       products: 'id, name',
@@ -452,6 +461,11 @@ class FinasuDB extends Dexie {
           await tx.table('settings').update('default', { hasSeenOnboarding: true })
         }
       })
+
+    this.cloud.configure({
+      databaseUrl: DEXIE_CLOUD_URL,
+      requireAuth: false,
+    })
 
     // Solo corre la primera vez que se crea la base de datos (instalaciones nuevas).
     this.on('populate', async () => {

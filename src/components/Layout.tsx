@@ -1,4 +1,4 @@
-import { useLiveQuery } from 'dexie-react-hooks'
+import { useLiveQuery, useObservable } from 'dexie-react-hooks'
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { db } from '../lib/db'
@@ -18,6 +18,8 @@ export function Layout() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [tourOpen, setTourOpen] = useState(false)
   const settings = useLiveQuery(() => db.settings.get('default'), [])
+  const currentUser = useObservable(db.cloud.currentUser)
+  const isLoggedIn = Boolean(currentUser?.isLoggedIn)
 
   useEffect(() => {
     document.body.style.overflow = menuOpen ? 'hidden' : ''
@@ -42,6 +44,16 @@ export function Layout() {
   async function handleCloseTour() {
     setTourOpen(false)
     await db.settings.update('default', { hasSeenOnboarding: true })
+  }
+
+  async function handleAuthClick() {
+    if (isLoggedIn) {
+      const confirmed = confirm(`¿Cerrar sesión de ${currentUser?.email ?? 'esta cuenta'}?`)
+      if (!confirmed) return
+      await db.cloud.logout()
+    } else {
+      await db.cloud.login()
+    }
   }
 
   return (
@@ -80,6 +92,16 @@ export function Layout() {
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg text-black/55 transition hover:bg-black/5"
             >
               🎓
+            </button>
+
+            <button
+              type="button"
+              onClick={handleAuthClick}
+              aria-label={isLoggedIn ? `Cerrar sesión (${currentUser?.email ?? ''})` : 'Iniciar sesión'}
+              title={isLoggedIn ? `Sesión iniciada: ${currentUser?.email ?? ''}` : 'Iniciar sesión / sincronizar'}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg text-black/55 transition hover:bg-black/5"
+            >
+              {isLoggedIn ? '👤' : '🔑'}
             </button>
 
             <button
