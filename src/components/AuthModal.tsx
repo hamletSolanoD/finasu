@@ -1,4 +1,4 @@
-import { useObservable } from 'dexie-react-hooks'
+import { useLiveQuery, useObservable } from 'dexie-react-hooks'
 import { useEffect, useState, type FormEvent } from 'react'
 import { db } from '../lib/db'
 
@@ -64,14 +64,69 @@ function friendlyAlertMessage(alert: { messageCode: string; message: string; mes
 
 export function AuthModal() {
   const interaction = useObservable(db.cloud.userInteraction)
+  const currentUser = useObservable(db.cloud.currentUser)
+  const settings = useLiveQuery(() => db.settings.get('default'), [])
   const [values, setValues] = useState<Record<string, string>>({})
+  const [nameDraft, setNameDraft] = useState('')
 
   // Limpia el formulario cada vez que cambia de tipo de interacción (ej. de email a otp).
   useEffect(() => {
     setValues({})
   }, [interaction?.type])
 
-  if (!interaction) return null
+  async function handleSkipName() {
+    await db.settings.update('default', { hasSeenNamePrompt: true })
+  }
+
+  async function handleSubmitName(e: FormEvent) {
+    e.preventDefault()
+    await db.settings.update('default', { displayName: nameDraft.trim(), hasSeenNamePrompt: true })
+  }
+
+  // Sin interacción pendiente de Dexie Cloud: si acabas de entrar por primera vez
+  // y todavía no tienes nombre puesto, se pregunta aquí mismo, justo después del login.
+  if (!interaction) {
+    const isLoggedIn = Boolean(currentUser?.isLoggedIn)
+    if (!isLoggedIn || !settings || settings.hasSeenNamePrompt) return null
+
+    return (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
+        <div className="w-full max-w-sm rounded-3xl border border-black/10 bg-cream p-6 shadow-xl">
+          <p className="text-3xl" aria-hidden>
+            ✏️
+          </p>
+          <h2 className="mt-2 font-display text-xl font-semibold">¿Cómo quieres que te reconozcamos?</h2>
+          <p className="mt-1 text-sm text-black/60">
+            Te vamos a dar la bienvenida con tu nombre cada vez que entres.
+          </p>
+          <form onSubmit={handleSubmitName} className="mt-4 flex flex-col gap-3">
+            <input
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              placeholder="Tu nombre"
+              autoFocus
+              className="rounded-xl border border-black/15 bg-white/70 px-3 py-2 text-black/80"
+            />
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                className="rounded-full bg-sage px-5 py-2 font-display font-semibold text-black/80 transition hover:brightness-95"
+              >
+                Guardar
+              </button>
+              <button
+                type="button"
+                onClick={handleSkipName}
+                className="rounded-full px-5 py-2 text-sm font-medium text-black/50 hover:bg-black/5"
+              >
+                Ahora no
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    )
+  }
 
   const fieldNames = Object.keys(interaction.fields)
   const copy = getCopy(interaction.type)

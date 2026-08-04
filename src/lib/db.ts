@@ -29,6 +29,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   firstUseMonth: monthKeyWithOffset(0),
   hasSeenOnboarding: false,
   displayName: '',
+  hasSeenNamePrompt: false,
 }
 
 /**
@@ -487,6 +488,35 @@ class FinasuDB extends Dexie {
         const settings = await tx.table('settings').get('default')
         if (settings && settings.displayName == null) {
           await tx.table('settings').update('default', { displayName: '' })
+        }
+      })
+
+    // v18: se pregunta el nombre justo después del primer login (ver AuthModal) en
+    // vez de esconderlo en el menú — hasSeenNamePrompt evita volver a preguntar.
+    // Quien ya tuviera un nombre puesto (v17) se marca como ya preguntado.
+    this.version(18)
+      .stores({
+        products: 'id, name, categoryId',
+        priceEntries: 'id, productId, store',
+        categories: 'id, name',
+        expenses: 'id, status, capturedAt',
+        expenseItems: 'id, expenseId, categoryId',
+        expenseCategories: 'id, name',
+        categoryLimits: 'id, categoryId, monthKey',
+        savingsGoals: 'id, name',
+        savingsDeposits: 'id, goalId, periodIndex',
+        futureExpenses: 'id, fechaObjetivo',
+        settings: 'id',
+        monthlyIncomes: 'id, monthKey',
+        savingsGoalDeletions: 'id, deletedAt',
+        projects: 'id, name',
+        projectItems: 'id, projectId, purchased',
+        projectPriceEntries: 'id, projectItemId, store',
+      })
+      .upgrade(async (tx) => {
+        const settings = await tx.table('settings').get('default')
+        if (settings && settings.hasSeenNamePrompt == null) {
+          await tx.table('settings').update('default', { hasSeenNamePrompt: Boolean(settings.displayName) })
         }
       })
 

@@ -11,6 +11,7 @@ import { db } from '../../lib/db'
 import { formatFechaLarga } from '../../lib/date'
 import { ICON_PALETTE } from '../../lib/expenseCategories'
 import { computeExpenseStatus } from '../../lib/expenseStatus'
+import { ensureIvaCategory, looksLikeIva } from '../../lib/ivaCategory'
 import { parseTicketLines } from '../../lib/ticketParser'
 
 interface DraftItem {
@@ -59,21 +60,24 @@ function ExpenseDetail() {
     return newId
   }
 
-  function handleReprocessOcr() {
+  async function handleReprocessOcr() {
     if (!expense) return
     const confirmed = confirm(
       '¿Reprocesar este ticket? Esto reemplazará los productos actuales por un nuevo análisis del texto del OCR — perderás las categorías que ya hayas puesto en este borrador. Los cambios no se guardan hasta que presiones \'Guardar cambios\'.',
     )
     if (!confirmed) return
     const parsed = parseTicketLines(expense.ocrText || '')
-    setItems(
-      parsed.map((p) => ({
-        id: crypto.randomUUID(),
-        nombre: p.nombre,
-        monto: String(p.monto),
-        categoryId: null,
-      })),
-    )
+    let ivaCategoryId: string | null = null
+    const nextItems: DraftItem[] = []
+    for (const p of parsed) {
+      let categoryId: string | null = null
+      if (looksLikeIva(p.nombre)) {
+        ivaCategoryId ??= await ensureIvaCategory()
+        categoryId = ivaCategoryId
+      }
+      nextItems.push({ id: crypto.randomUUID(), nombre: p.nombre, monto: String(p.monto), categoryId })
+    }
+    setItems(nextItems)
   }
 
   async function handleDeletePhoto() {

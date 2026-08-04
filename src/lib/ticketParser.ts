@@ -9,7 +9,8 @@ const SKIP_KEYWORDS = [
   'SUBTOTAL',
   'CAMBIO',
   'EFECTIVO',
-  'IVA',
+  // 'IVA' se captura a propósito (ver más abajo) — no es un producto, pero sí
+  // sale de tu bolsillo, así que se categoriza solo en vez de descartarse.
   'GRACIAS',
   'FECHA',
   'HORA',
@@ -69,6 +70,9 @@ const LEADING_SKU = /^\d{5,}\s+/
 /** Cantidad suelta al inicio ("2 COCA COLA...", "1,00 Agua..."), no forma parte del nombre. */
 const LEADING_QTY = /^\d{1,3}(?:[.,]\d{1,2})?\s+(?=\S)/
 
+/** Tope de piezas al partir un renglón con cantidad — más que esto es casi seguro un error de OCR. */
+const MAX_SPLIT_QUANTITY = 20
+
 /**
  * Descarta todo lo que casi seguro no es un producto (totales, fechas, medios
  * de pago, etc.) y regresa solo las líneas que sí parecen tener un precio al
@@ -81,9 +85,10 @@ export function extractProductCandidateLines(ocrText: string): string[] {
     .map((line) => line.trim())
     .filter(Boolean)
     .filter((line) => !SKIP_KEYWORDS.some((keyword) => line.toUpperCase().includes(keyword)))
-    // Desgloses de IVA/descuento ("10,00%: Base: 65,82 € Cuota: 6,58 €") casi
-    // nunca son un producto — un producto real casi nunca lleva un "%" en la línea.
-    .filter((line) => !line.includes('%'))
+    // Desgloses de descuento ("10,00%: Base: 65,82 € Cuota: 6,58 €") casi nunca
+    // son un producto — un producto real casi nunca lleva un "%" en la línea.
+    // Excepción: el renglón del IVA sí se queda, aunque traiga el "%" (ej. "IVA 16%").
+    .filter((line) => !line.includes('%') || /\biva\b/i.test(line))
     .filter((line) => PRICE_AT_END.test(line) || PRICE_NO_SEPARATOR.test(line))
 }
 
@@ -113,11 +118,33 @@ export function parseTicketLines(ocrText: string): ParsedItem[] {
 
     if (!Number.isFinite(monto) || monto < 0) continue
 
-    let nombre = line.slice(0, matchIndex).trim()
-    nombre = nombre.replace(LEADING_SKU, '').replace(LEADING_QTY, '').trim()
+    let nombre = line.slice(0, matchIndex).trim().replace(LEADING_SKU, '')
+
+    // Si el renglón trae una cantidad entera al inicio (ej. "2 COCA COLA..."),
+    // se reparte el importe en ese número de piezas y se agregan como productos
+    // separados — así el ticket muestra "2 productos" en vez de uno con el
+    // precio de los dos juntos. Cantidades con decimales (peso, ej. "0,500 kg")
+    // se quedan como una sola línea, igual que antes.
+    const qtyMatch = nombre.match(LEADING_QTY)
+    const qtyRaw = qtyMatch ? Number(qtyMatch[0].trim().replace(',', '.')) : 1
+    const quantity = Number.isInteger(qtyRaw) && qtyRaw >= 2 && qtyRaw <= MAX_SPLIT_QUANTITY ? qtyRaw : 1
+    if (qtyMatch) nombre = nombre.slice(qtyMatch[0].length).trim()
+
     if (nombre.length < 2) continue
 
-    items.push({ nombre, monto })
+    if (quantity > 1) {
+      // Reparte los centavos exactos entre las piezas (los primeros se llevan
+      // el sobrante) para que la suma siga cuadrando con lo que dice el ticket.
+      const totalCents = Math.round(monto * 100)
+      const baseCents = Math.floor(totalCents / quantity)
+      const remainderCents = totalCents - baseCents * quantity
+      for (let i = 0; i < quantity; i++) {
+        const cents = baseCents + (i < remainderCents ? 1 : 0)
+        items.push({ nombre, monto: cents / 100 })
+      }
+    } else {
+      items.push({ nombre, monto })
+    }
   }
 
   return items

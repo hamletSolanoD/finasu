@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { DEFAULT_CURRENCY } from '../../lib/currency'
 import { db } from '../../lib/db'
 import { fileToResizedDataUrl } from '../../lib/image'
+import { ensureIvaCategory, looksLikeIva } from '../../lib/ivaCategory'
 import { extractTextFromImage } from '../../lib/ocr'
 import { extractMerchantName, parseTicketDate, parseTicketLines } from '../../lib/ticketParser'
 
@@ -36,6 +37,8 @@ function ScanTicket() {
     }))
     setItems((prev) => [...initialItems, ...prev])
 
+    let ivaCategoryId: string | null = null
+
     for (let i = 0; i < fileArray.length; i++) {
       const file = fileArray[i]
       const item = initialItems[i]
@@ -68,16 +71,24 @@ function ScanTicket() {
         merchant,
       })
       if (parsedItems.length > 0) {
-        await db.expenseItems.bulkAdd(
-          parsedItems.map((p, index) => ({
+        const itemsToAdd = []
+        for (let index = 0; index < parsedItems.length; index++) {
+          const p = parsedItems[index]
+          let categoryId: string | null = null
+          if (looksLikeIva(p.nombre)) {
+            ivaCategoryId ??= await ensureIvaCategory()
+            categoryId = ivaCategoryId
+          }
+          itemsToAdd.push({
             id: crypto.randomUUID(),
             expenseId: item.id,
             nombre: p.nombre,
             monto: p.monto,
-            categoryId: null,
+            categoryId,
             order: index,
-          })),
-        )
+          })
+        }
+        await db.expenseItems.bulkAdd(itemsToAdd)
       }
 
       setItems((prev) =>

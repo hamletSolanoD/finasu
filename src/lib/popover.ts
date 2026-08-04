@@ -76,16 +76,15 @@ export function useFloatingPosition(
       setPos({ top, left, triggerWidth: rect.width })
     }
 
+    // Solo se calcula al abrir — escuchar visualViewport en vivo hacía que el
+    // panel se corriera de posición mientras el usuario tenía el dedo encima
+    // (ej. el teclado animando su cierre justo al tocar una opción).
     reposition()
     window.addEventListener('scroll', reposition, true)
     window.addEventListener('resize', reposition)
-    window.visualViewport?.addEventListener('resize', reposition)
-    window.visualViewport?.addEventListener('scroll', reposition)
     return () => {
       window.removeEventListener('scroll', reposition, true)
       window.removeEventListener('resize', reposition)
-      window.visualViewport?.removeEventListener('resize', reposition)
-      window.visualViewport?.removeEventListener('scroll', reposition)
     }
   }, [open, triggerRef, panelHeight, panelWidth])
 

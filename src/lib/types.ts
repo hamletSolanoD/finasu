@@ -100,8 +100,10 @@ export interface AppSettings {
    * el tour se migran como true (ver db.ts v16), así que no lo ven de sorpresa.
    */
   hasSeenOnboarding: boolean
-  /** Nombre para mostrar en "Mi cuenta" — cada usuario pone el suyo, vacío por default. */
+  /** Nombre para mostrar en "Mi cuenta" y en el saludo de Inicio — cada usuario pone el suyo. */
   displayName: string
+  /** Si ya se le preguntó su nombre justo después de iniciar sesión por primera vez — para no volver a preguntar. */
+  hasSeenNamePrompt: boolean
 }
 
 /**

@@ -1,7 +1,9 @@
+import { useLiveQuery } from 'dexie-react-hooks'
 import { Link } from 'react-router-dom'
 import { HomeStatusPanel } from '../components/HomeStatusPanel'
 import { MonthlyReminderBanner } from '../components/MonthlyReminderBanner'
 import { SmartSearch } from '../components/SmartSearch'
+import { db } from '../lib/db'
 
 function HubTile({ to, icon, label }: { to: string; icon: string; label: string }) {
   return (
@@ -18,9 +20,20 @@ function HubTile({ to, icon, label }: { to: string; icon: string; label: string 
 }
 
 function Home() {
+  const settings = useLiveQuery(() => db.settings.get('default'), [])
+  const name = settings?.displayName.trim()
+
   return (
     <div>
-      <SmartSearch />
+      {name && (
+        <p className="font-display text-2xl font-semibold sm:text-3xl">
+          Bienvenido, {name} 👋
+        </p>
+      )}
+
+      <div className={name ? 'mt-6' : ''}>
+        <SmartSearch />
+      </div>
 
       <div className="mt-4">
         <MonthlyReminderBanner />
