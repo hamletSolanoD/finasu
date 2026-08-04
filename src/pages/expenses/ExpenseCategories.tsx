@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import { HomeStatusPanel } from '../../components/HomeStatusPanel'
 import { MonthLimitsSection, monthFullySet } from '../../components/MonthLimitsSection'
 import { computeMonthlySpendByCategory } from '../../lib/budget'
 import { findExistingCategoryId } from '../../lib/categories'
@@ -77,6 +78,8 @@ function ExpenseCategories() {
         fijos hasta el mes siguiente.
       </p>
 
+      <HomeStatusPanel />
+
       {advanceNotice && !nextMonthReady && (
         <Link
           to={`/gastos/categorias/mes/${nextMonthKey}`}
@@ -95,6 +98,8 @@ function ExpenseCategories() {
           limits={limits}
           incomes={incomes}
           spendByCategory={spendByCategory}
+          expenses={expenses}
+          items={items}
           showAiSuggestion
           highlightedCategoryId={highlightedCategoryId}
           onDeleteCategory={handleDeleteCategory}

@@ -126,6 +126,12 @@ function ExpensesList() {
           >
             + Escanear ticket
           </Link>
+          <Link
+            to="/gastos/manual"
+            className="rounded-full border border-black/15 bg-white/60 px-5 py-2.5 font-display font-semibold text-black/70 transition hover:bg-black/5"
+          >
+            ✍️ Agregar a mano
+          </Link>
         </div>
       </div>
 

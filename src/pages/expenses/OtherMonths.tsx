@@ -73,6 +73,8 @@ function OtherMonths() {
                       limits={limits}
                       incomes={incomes}
                       spendByCategory={spendByCategory}
+                      expenses={expenses}
+                      items={items}
                       showAiSuggestion={false}
                       editable={false}
                     />

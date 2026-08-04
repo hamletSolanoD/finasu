@@ -52,6 +52,19 @@ export interface Expense {
   currency: string
   /** Nombre del establecimiento, sacado del OCR — null si no se pudo detectar. */
   merchant: string | null
+  /** Tienda vinculada de tu registro (ver Store) — null hasta que el OCR la reconoce o la pones a mano. */
+  storeId: string | null
+}
+
+/** Una tienda que registras (nombre + ícono o foto/logo) — se usa en tickets y se puede
+ * elegir también al agregar precios de productos frecuentes o de proyectos. */
+export interface Store {
+  id: string
+  name: string
+  icon: string
+  /** Foto/logo opcional — si está presente se muestra en vez del ícono. */
+  image?: string
+  createdAt: number
 }
 
 /** Un producto/línea dentro de un ticket, con su propia categoría — así se sabe exactamente en qué se fue el dinero. */

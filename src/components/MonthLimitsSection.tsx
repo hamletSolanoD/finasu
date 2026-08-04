@@ -1,9 +1,11 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { SwipeableRow } from './SwipeableRow'
 import { computeBudgetState } from '../lib/budget'
 import { allLimitsSetForMonth, committedForMonth, getIncomeForMonth, getLimitForMonth } from '../lib/categoryLimits'
+import { formatFechaLarga } from '../lib/date'
 import { db } from '../lib/db'
-import type { CategoryLimit, ExpenseCategory, MonthlyIncome } from '../lib/types'
+import type { CategoryLimit, Expense, ExpenseCategory, ExpenseItem, MonthlyIncome } from '../lib/types'
 import { formatCurrency } from '../lib/units'
 
 function BudgetProgress({ spent, limit }: { spent: number; limit: number | null }) {
@@ -107,6 +109,74 @@ function IncomeRow({
   )
 }
 
+/** Modal con los gastos de una categoría en un mes — o un aviso de que todavía no hay ninguno. */
+function CategoryExpensesModal({
+  category,
+  expenses,
+  categoryItems,
+  onClose,
+}: {
+  category: ExpenseCategory
+  expenses: Expense[]
+  categoryItems: ExpenseItem[]
+  onClose: () => void
+}) {
+  const expensesById = new Map(expenses.map((expense) => [expense.id, expense]))
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div
+        className="w-full max-w-sm rounded-3xl border border-black/10 bg-cream p-6 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <h2 className="font-display text-lg font-semibold">
+            {category.icon} {category.name}
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Cerrar"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-lg text-black/40 transition hover:bg-black/5 hover:text-black/70"
+          >
+            ✕
+          </button>
+        </div>
+
+        {categoryItems.length === 0 ? (
+          <p className="mt-3 text-sm text-black/60">
+            Todavía no hay gastos categorizados en {category.name} este mes.
+          </p>
+        ) : (
+          <ul className="mt-3 flex max-h-80 flex-col gap-2 overflow-y-auto">
+            {categoryItems.map((item) => {
+              const expense = expensesById.get(item.expenseId)
+              return (
+                <li key={item.id}>
+                  <Link
+                    to={`/gastos/${item.expenseId}`}
+                    onClick={onClose}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-black/10 bg-white/60 p-3 transition hover:bg-white/90"
+                  >
+                    <span>
+                      <span className="block font-medium">{item.nombre}</span>
+                      <span className="block text-xs text-black/50">
+                        {expense ? formatFechaLarga(expense.fecha) : ''}
+                        {expense?.merchant ? ` · ${expense.merchant}` : ''}
+                      </span>
+                    </span>
+                    <span className="shrink-0 font-semibold">{formatCurrency(item.monto)}</span>
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </div>
+    </div>
+  )
+}
+
 /**
  * El límite de cada categoría es un evento único por mes: una vez guardado
  * queda fijo (solo lectura + barra de avance) hasta que empiece el mes
@@ -121,6 +191,8 @@ function CategoryLimitRow({
   monthKey,
   highlighted,
   editable,
+  expenses,
+  items,
   onDeleteCategory,
 }: {
   category: ExpenseCategory
@@ -131,25 +203,49 @@ function CategoryLimitRow({
   monthKey: string
   highlighted: boolean
   editable: boolean
+  expenses: Expense[]
+  items: ExpenseItem[]
   onDeleteCategory?: (categoryId: string) => void
 }) {
   const [value, setValue] = useState('')
   const [error, setError] = useState('')
+  const [showExpenses, setShowExpenses] = useState(false)
   const domId = `cat-${category.id}`
   const highlightRing = highlighted ? 'ring-2 ring-sky ring-offset-2 ring-offset-cream' : ''
 
   if (limit || !editable) {
+    const expenseIdsThisMonth = new Set(
+      expenses.filter((expense) => expense.fecha.slice(0, 7) === monthKey).map((expense) => expense.id),
+    )
+    const categoryItems = items.filter(
+      (item) => item.categoryId === category.id && expenseIdsThisMonth.has(item.expenseId),
+    )
+
     return (
-      <li id={domId} className={`rounded-xl border border-black/10 bg-white/60 p-3 transition ${highlightRing}`}>
-        <div className="flex items-center justify-between gap-3">
-          <span className="font-medium">
-            {category.icon} {category.name}
-          </span>
-          <span className="text-sm text-black/50">
-            {limit ? (limit.limit !== null ? `${formatCurrency(limit.limit)}/mes` : 'Sin límite') : 'Sin definir'}
-          </span>
-        </div>
-        <BudgetProgress spent={spent} limit={limit?.limit ?? null} />
+      <li id={domId}>
+        <button
+          type="button"
+          onClick={() => setShowExpenses(true)}
+          className={`w-full rounded-xl border border-black/10 bg-white/60 p-3 text-left transition focus:outline-none ${highlightRing}`}
+        >
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-medium">
+              {category.icon} {category.name}
+            </span>
+            <span className="text-sm text-black/50">
+              {limit ? (limit.limit !== null ? `${formatCurrency(limit.limit)}/mes` : 'Sin límite') : 'Sin definir'}
+            </span>
+          </div>
+          <BudgetProgress spent={spent} limit={limit?.limit ?? null} />
+        </button>
+        {showExpenses && (
+          <CategoryExpensesModal
+            category={category}
+            expenses={expenses}
+            categoryItems={categoryItems}
+            onClose={() => setShowExpenses(false)}
+          />
+        )}
       </li>
     )
   }
@@ -242,6 +338,8 @@ export function MonthLimitsSection({
   limits,
   incomes,
   spendByCategory,
+  expenses,
+  items,
   showAiSuggestion,
   highlightedCategoryId = null,
   editable = true,
@@ -253,6 +351,8 @@ export function MonthLimitsSection({
   limits: CategoryLimit[]
   incomes: MonthlyIncome[]
   spendByCategory: Map<string, number>
+  expenses: Expense[]
+  items: ExpenseItem[]
   showAiSuggestion: boolean
   highlightedCategoryId?: string | null
   editable?: boolean
@@ -302,6 +402,8 @@ export function MonthLimitsSection({
             monthKey={monthKey}
             highlighted={category.id === highlightedCategoryId}
             editable={editable}
+            expenses={expenses}
+            items={items}
             onDeleteCategory={onDeleteCategory}
           />
         ))}

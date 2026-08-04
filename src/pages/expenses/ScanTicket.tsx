@@ -5,6 +5,7 @@ import { db } from '../../lib/db'
 import { fileToResizedDataUrl } from '../../lib/image'
 import { ensureIvaCategory, looksLikeIva } from '../../lib/ivaCategory'
 import { extractTextFromImage } from '../../lib/ocr'
+import { matchStoreByMerchant } from '../../lib/stores'
 import { extractMerchantName, parseTicketDate, parseTicketLines } from '../../lib/ticketParser'
 
 type ItemStatus = 'procesando' | 'guardado' | 'requiere_revision'
@@ -38,6 +39,7 @@ function ScanTicket() {
     setItems((prev) => [...initialItems, ...prev])
 
     let ivaCategoryId: string | null = null
+    const stores = await db.stores.toArray()
 
     for (let i = 0; i < fileArray.length; i++) {
       const file = fileArray[i]
@@ -59,6 +61,7 @@ function ScanTicket() {
       const capturedAt = Date.now()
       const fecha = parseTicketDate(ocrText) ?? new Date(capturedAt).toISOString().slice(0, 10)
       const merchant = extractMerchantName(ocrText)
+      const storeId = matchStoreByMerchant(merchant, stores)
 
       await db.expenses.add({
         id: item.id,
@@ -69,6 +72,7 @@ function ScanTicket() {
         capturedAt,
         currency: DEFAULT_CURRENCY,
         merchant,
+        storeId,
       })
       if (parsedItems.length > 0) {
         const itemsToAdd = []

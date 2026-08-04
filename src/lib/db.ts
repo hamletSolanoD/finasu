@@ -22,6 +22,7 @@ import type {
   SavingsDeposit,
   SavingsGoal,
   SavingsGoalDeletionLog,
+  Store,
 } from './types'
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -56,6 +57,7 @@ class FinasuDB extends Dexie {
   projects!: Table<Project, string>
   projectItems!: Table<ProjectItem, string>
   projectPriceEntries!: Table<ProjectPriceEntry, string>
+  stores!: Table<Store, string>
 
   constructor() {
     super('finasu', { addons: [dexieCloud] })
@@ -517,6 +519,37 @@ class FinasuDB extends Dexie {
         const settings = await tx.table('settings').get('default')
         if (settings && settings.hasSeenNamePrompt == null) {
           await tx.table('settings').update('default', { hasSeenNamePrompt: Boolean(settings.displayName) })
+        }
+      })
+
+    // v19: registro de tiendas (nombre + ícono o foto) — se vincula a los tickets
+    // (a mano o por OCR) y se puede elegir también al agregar precios de
+    // productos frecuentes o de proyectos. Los tickets ya existentes quedan sin
+    // tienda vinculada (storeId: null) hasta que el usuario la ponga a mano.
+    this.version(19)
+      .stores({
+        products: 'id, name, categoryId',
+        priceEntries: 'id, productId, store',
+        categories: 'id, name',
+        expenses: 'id, status, capturedAt',
+        expenseItems: 'id, expenseId, categoryId',
+        expenseCategories: 'id, name',
+        categoryLimits: 'id, categoryId, monthKey',
+        savingsGoals: 'id, name',
+        savingsDeposits: 'id, goalId, periodIndex',
+        futureExpenses: 'id, fechaObjetivo',
+        settings: 'id',
+        monthlyIncomes: 'id, monthKey',
+        savingsGoalDeletions: 'id, deletedAt',
+        projects: 'id, name',
+        projectItems: 'id, projectId, purchased',
+        projectPriceEntries: 'id, projectItemId, store',
+        stores: 'id, name',
+      })
+      .upgrade(async (tx) => {
+        const expenses = await tx.table('expenses').toArray()
+        for (const e of expenses) {
+          if (e.storeId === undefined) await tx.table('expenses').update(e.id, { storeId: null })
         }
       })
 

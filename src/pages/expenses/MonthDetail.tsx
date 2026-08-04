@@ -50,6 +50,8 @@ function MonthDetail() {
           limits={limits}
           incomes={incomes}
           spendByCategory={spendByCategory}
+          expenses={expenses}
+          items={items}
           showAiSuggestion={false}
           onDeleteCategory={handleDeleteCategory}
         />

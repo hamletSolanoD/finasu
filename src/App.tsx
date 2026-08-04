@@ -6,6 +6,7 @@ import StoreBrowse from './pages/StoreBrowse'
 import AddProduct from './pages/frequent-products/AddProduct'
 import ProductDetail from './pages/frequent-products/ProductDetail'
 import ProductsList from './pages/frequent-products/ProductsList'
+import AddExpenseManual from './pages/expenses/AddExpenseManual'
 import ExpenseCategories from './pages/expenses/ExpenseCategories'
 import ExpenseDetail from './pages/expenses/ExpenseDetail'
 import ExpensesList from './pages/expenses/ExpensesList'
@@ -33,6 +34,7 @@ function App() {
         <Route path="/gastos/categorias/otros-meses" element={<OtherMonths />} />
         <Route path="/gastos/categorias/mes/:monthKey" element={<MonthDetail />} />
         <Route path="/gastos/sin-categorizar" element={<UncategorizedItems />} />
+        <Route path="/gastos/manual" element={<AddExpenseManual />} />
         <Route path="/gastos/:id" element={<ExpenseDetail />} />
         <Route path="/ahorro" element={<SavingsHub />} />
         <Route path="/resumen" element={<MonthlySummary />} />

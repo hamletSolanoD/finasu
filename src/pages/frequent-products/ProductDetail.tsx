@@ -4,11 +4,12 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { CategoryDropdown } from '../../components/CategoryDropdown'
 import { Dropdown } from '../../components/Dropdown'
 import { ImageUploader } from '../../components/ImageUploader'
+import { StorePicker } from '../../components/StorePicker'
 import { PencilIcon, StarIcon, TrashIcon } from '../../components/icons'
 import { findExistingCategoryId, ICON_PALETTE } from '../../lib/categories'
 import { db } from '../../lib/db'
 import { MAX_FAVORITES, toggleProductFavorite } from '../../lib/products'
-import { capitalizeStoreName } from '../../lib/text'
+import { findExistingStoreId } from '../../lib/stores'
 import type { Unit } from '../../lib/types'
 import { UNITS_BY_KIND, displayUnitPrice, formatCurrency, formatUnitPrice } from '../../lib/units'
 
@@ -26,8 +27,9 @@ function ProductDetail() {
     [product?.categoryId],
   )
   const categories = useLiveQuery(() => db.categories.orderBy('name').toArray(), [])
+  const stores = useLiveQuery(() => db.stores.orderBy('name').toArray(), [])
 
-  const [store, setStore] = useState('')
+  const [storeId, setStoreId] = useState('')
   const [price, setPrice] = useState<number | ''>('')
   const [amount, setAmount] = useState<number | ''>('')
   const [unit, setUnit] = useState<Unit>('g')
@@ -62,6 +64,14 @@ function ProductDetail() {
     return newId
   }
 
+  async function handleCreateStore(name: string, icon: string, image?: string) {
+    const existingId = findExistingStoreId(stores ?? [], name)
+    if (existingId) return existingId
+    const newId = crypto.randomUUID()
+    await db.stores.add({ id: newId, name: name.trim(), icon, image, createdAt: Date.now() })
+    return newId
+  }
+
   async function handleSaveEdit(e: FormEvent) {
     e.preventDefault()
     if (!editName.trim() || !editCategoryId) return
@@ -80,19 +90,21 @@ function ProductDetail() {
 
   async function handleAddEntry(e: FormEvent) {
     e.preventDefault()
-    if (!store.trim() || price === '' || price <= 0 || amount === '' || amount <= 0) return
+    if (!storeId || price === '' || price <= 0 || amount === '' || amount <= 0) return
+    const selectedStore = (stores ?? []).find((s) => s.id === storeId)
+    if (!selectedStore) return
 
     await db.priceEntries.add({
       id: crypto.randomUUID(),
       productId: product!.id,
-      store: capitalizeStoreName(store),
+      store: selectedStore.name,
       price: Number(price),
       amount: Number(amount),
       unit: selectedUnit,
       isOnline,
       date: Date.now(),
     })
-    setStore('')
+    setStoreId('')
     setPrice('')
     setAmount('')
     setIsOnline(false)
@@ -265,11 +277,12 @@ function ProductDetail() {
           <div className="grid grid-cols-2 gap-3">
             <label className="flex flex-col gap-1 text-sm text-black/60">
               Tienda
-              <input
-                value={store}
-                onChange={(e) => setStore(e.target.value)}
+              <StorePicker
+                stores={stores ?? []}
+                value={storeId}
+                onChange={setStoreId}
+                onCreate={handleCreateStore}
                 placeholder="Ej. Soriana"
-                className="rounded-xl border border-black/15 bg-white/70 px-3 py-2 text-black/80"
               />
             </label>
             <label className="flex flex-col gap-1 text-sm text-black/60">

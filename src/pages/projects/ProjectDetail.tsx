@@ -1,11 +1,12 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { StorePicker } from '../../components/StorePicker'
 import { SwipeableRow } from '../../components/SwipeableRow'
 import { computeBudgetState } from '../../lib/budget'
 import { db } from '../../lib/db'
 import { bestPriceFor, computeProjectEstimate } from '../../lib/projects'
-import { capitalizeStoreName } from '../../lib/text'
+import { findExistingStoreId } from '../../lib/stores'
 import type { ProjectItem, ProjectPriceEntry } from '../../lib/types'
 import { formatCurrency } from '../../lib/units'
 
@@ -66,7 +67,8 @@ function ProjectItemCard({
   isExpanded: boolean
   onToggleExpand: () => void
 }) {
-  const [store, setStore] = useState('')
+  const stores = useLiveQuery(() => db.stores.orderBy('name').toArray(), [])
+  const [storeId, setStoreId] = useState('')
   const [price, setPrice] = useState<number | ''>('')
 
   const best = bestPriceFor(item.id, entries)
@@ -76,18 +78,28 @@ function ProjectItemCard({
     await db.projectItems.update(item.id, { purchased: !item.purchased })
   }
 
+  async function handleCreateStore(name: string, icon: string, image?: string) {
+    const existingId = findExistingStoreId(stores ?? [], name)
+    if (existingId) return existingId
+    const newId = crypto.randomUUID()
+    await db.stores.add({ id: newId, name: name.trim(), icon, image, createdAt: Date.now() })
+    return newId
+  }
+
   async function handleAddEntry(e: FormEvent) {
     e.preventDefault()
-    if (!store.trim() || price === '' || price <= 0) return
+    if (!storeId || price === '' || price <= 0) return
+    const selectedStore = (stores ?? []).find((s) => s.id === storeId)
+    if (!selectedStore) return
 
     await db.projectPriceEntries.add({
       id: crypto.randomUUID(),
       projectItemId: item.id,
-      store: capitalizeStoreName(store),
+      store: selectedStore.name,
       price: Number(price),
       date: Date.now(),
     })
-    setStore('')
+    setStoreId('')
     setPrice('')
   }
 
@@ -164,11 +176,12 @@ function ProjectItemCard({
             <div className="grid grid-cols-2 gap-3">
               <label className="flex flex-col gap-1 text-sm text-black/60">
                 Tienda
-                <input
-                  value={store}
-                  onChange={(e) => setStore(e.target.value)}
+                <StorePicker
+                  stores={stores ?? []}
+                  value={storeId}
+                  onChange={setStoreId}
+                  onCreate={handleCreateStore}
                   placeholder="Ej. Home Depot"
-                  className="rounded-xl border border-black/15 bg-white/70 px-3 py-2 text-black/80"
                 />
               </label>
               <label className="flex flex-col gap-1 text-sm text-black/60">

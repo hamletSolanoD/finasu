@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { CategoryDropdown } from '../../components/CategoryDropdown'
 import { DatePicker } from '../../components/DatePicker'
 import { Dropdown } from '../../components/Dropdown'
+import { StorePicker } from '../../components/StorePicker'
 import { SwipeableRow } from '../../components/SwipeableRow'
 import { findExistingCategoryId } from '../../lib/categories'
 import { CURRENCY_OPTIONS } from '../../lib/currency'
@@ -12,6 +13,7 @@ import { formatFechaLarga } from '../../lib/date'
 import { ICON_PALETTE } from '../../lib/expenseCategories'
 import { computeExpenseStatus } from '../../lib/expenseStatus'
 import { ensureIvaCategory, looksLikeIva } from '../../lib/ivaCategory'
+import { findExistingStoreId, matchStoreByMerchant } from '../../lib/stores'
 import { parseTicketLines } from '../../lib/ticketParser'
 
 interface DraftItem {
@@ -31,12 +33,15 @@ function ExpenseDetail() {
     [id],
   )
   const expenseCategories = useLiveQuery(() => db.expenseCategories.orderBy('name').toArray(), [])
+  const stores = useLiveQuery(() => db.stores.orderBy('name').toArray(), [])
 
   const [fecha, setFecha] = useState('')
   const [currency, setCurrency] = useState('')
+  const [storeId, setStoreId] = useState('')
   const [items, setItems] = useState<DraftItem[]>([])
   const [showOcrText, setShowOcrText] = useState(false)
   const [loadedFrom, setLoadedFrom] = useState<string | null>(null)
+  const [storeAutoMatchedFor, setStoreAutoMatchedFor] = useState<string | null>(null)
   const [viewerOpen, setViewerOpen] = useState(false)
 
   // Precarga el borrador una sola vez, cuando el ticket y sus productos terminan de cargar.
@@ -44,11 +49,25 @@ function ExpenseDetail() {
     if (!expense || dbItems === undefined || loadedFrom === expense.id) return
     setFecha(expense.fecha)
     setCurrency(expense.currency)
+    setStoreId(expense.storeId ?? '')
     setItems(
       dbItems.map((i) => ({ id: i.id, nombre: i.nombre, monto: String(i.monto), categoryId: i.categoryId })),
     )
     setLoadedFrom(expense.id)
   }, [expense, dbItems, loadedFrom])
+
+  // Nice-to-have: si un ticket viejo nunca se auto-emparejó con una tienda (storeId
+  // sigue vacío), intenta emparejarlo en cuanto las tiendas terminan de cargar — sin
+  // pisar una tienda que el usuario ya haya elegido a mano en este borrador.
+  useEffect(() => {
+    if (!expense || stores === undefined || loadedFrom !== expense.id) return
+    if (storeAutoMatchedFor === expense.id) return
+    if (!storeId) {
+      const matched = matchStoreByMerchant(expense.merchant, stores)
+      if (matched) setStoreId(matched)
+    }
+    setStoreAutoMatchedFor(expense.id)
+  }, [expense, stores, loadedFrom, storeId, storeAutoMatchedFor])
 
   if (!expense) return null
 
@@ -57,6 +76,14 @@ function ExpenseDetail() {
     if (existingId) return existingId
     const newId = crypto.randomUUID()
     await db.expenseCategories.add({ id: newId, name: name.trim(), icon, createdAt: Date.now() })
+    return newId
+  }
+
+  async function handleCreateStore(name: string, icon: string, image?: string) {
+    const existingId = findExistingStoreId(stores ?? [], name)
+    if (existingId) return existingId
+    const newId = crypto.randomUUID()
+    await db.stores.add({ id: newId, name: name.trim(), icon, image, createdAt: Date.now() })
     return newId
   }
 
@@ -119,6 +146,7 @@ function ExpenseDetail() {
       await db.expenses.update(expense!.id, {
         fecha: fecha || expense!.fecha,
         currency: currency || expense!.currency,
+        storeId: storeId || null,
         status: computeExpenseStatus(validItems, expense!.status),
       })
 
@@ -218,6 +246,18 @@ function ExpenseDetail() {
           <label className="flex flex-col gap-1 text-sm text-black/60">
             Moneda
             <Dropdown value={currency} options={CURRENCY_OPTIONS} onChange={setCurrency} />
+          </label>
+          <label className="col-span-2 flex flex-col gap-1 text-sm text-black/60">
+            Tienda
+            {stores && (
+              <StorePicker
+                stores={stores}
+                value={storeId}
+                onChange={setStoreId}
+                onCreate={handleCreateStore}
+                allowNone
+              />
+            )}
           </label>
         </div>
 
