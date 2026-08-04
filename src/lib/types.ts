@@ -100,6 +100,8 @@ export interface AppSettings {
    * el tour se migran como true (ver db.ts v16), así que no lo ven de sorpresa.
    */
   hasSeenOnboarding: boolean
+  /** Nombre para mostrar en "Mi cuenta" — cada usuario pone el suyo, vacío por default. */
+  displayName: string
 }
 
 /**

@@ -76,6 +76,16 @@ function ExpenseDetail() {
     )
   }
 
+  async function handleDeletePhoto() {
+    if (!expense) return
+    const confirmed = confirm(
+      '¿Eliminar la foto de este ticket? Conservas todo el texto y los productos ya categorizados — solo dejas de poder ver la imagen original para comparar. Esto no se puede deshacer.',
+    )
+    if (!confirmed) return
+    await db.expenses.update(expense.id, { image: undefined })
+    setViewerOpen(false)
+  }
+
   function updateItem(itemId: string, patch: Partial<DraftItem>) {
     setItems((prev) => prev.map((it) => (it.id === itemId ? { ...it, ...patch } : it)))
   }
@@ -160,6 +170,15 @@ function ExpenseDetail() {
           >
             🔄 Reprocesar con OCR
           </button>
+          {expense.image && (
+            <button
+              type="button"
+              onClick={handleDeletePhoto}
+              className="mt-1 block text-xs text-black/40 underline hover:text-black/60"
+            >
+              🗑️ Eliminar foto (quedarme solo con el texto)
+            </button>
+          )}
         </div>
       </div>
 

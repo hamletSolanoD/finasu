@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie'
+import dexieCloud from 'dexie-cloud-addon'
 import { DEFAULT_CATEGORIES } from './categories'
 import { DEFAULT_CURRENCY } from './currency'
 import { DEFAULT_EXPENSE_CATEGORIES } from './expenseCategories'
@@ -27,7 +28,15 @@ const DEFAULT_SETTINGS: AppSettings = {
   id: 'default',
   firstUseMonth: monthKeyWithOffset(0),
   hasSeenOnboarding: false,
+  displayName: '',
 }
+
+/**
+ * Login obligatorio: sin sesión, Dexie Cloud filtra todo por cuenta y la app se
+ * ve vacía aunque los datos sigan ahí — mejor exigir login desde el inicio que
+ * dejar a alguien usándola "sin cuenta" y confundido pensando que perdió todo.
+ */
+const DEXIE_CLOUD_URL = 'https://zlcp5maax.dexie.cloud'
 
 class FinasuDB extends Dexie {
   products!: Table<Product, string>
@@ -48,7 +57,7 @@ class FinasuDB extends Dexie {
   projectPriceEntries!: Table<ProjectPriceEntry, string>
 
   constructor() {
-    super('finasu')
+    super('finasu', { addons: [dexieCloud] })
 
     this.version(1).stores({
       products: 'id, name',
@@ -452,6 +461,41 @@ class FinasuDB extends Dexie {
           await tx.table('settings').update('default', { hasSeenOnboarding: true })
         }
       })
+
+    // v17: nombre para mostrar en "Mi cuenta", ligado a Dexie Cloud — cada usuario
+    // pone el suyo (queda vacío si no lo llena).
+    this.version(17)
+      .stores({
+        products: 'id, name, categoryId',
+        priceEntries: 'id, productId, store',
+        categories: 'id, name',
+        expenses: 'id, status, capturedAt',
+        expenseItems: 'id, expenseId, categoryId',
+        expenseCategories: 'id, name',
+        categoryLimits: 'id, categoryId, monthKey',
+        savingsGoals: 'id, name',
+        savingsDeposits: 'id, goalId, periodIndex',
+        futureExpenses: 'id, fechaObjetivo',
+        settings: 'id',
+        monthlyIncomes: 'id, monthKey',
+        savingsGoalDeletions: 'id, deletedAt',
+        projects: 'id, name',
+        projectItems: 'id, projectId, purchased',
+        projectPriceEntries: 'id, projectItemId, store',
+      })
+      .upgrade(async (tx) => {
+        const settings = await tx.table('settings').get('default')
+        if (settings && settings.displayName == null) {
+          await tx.table('settings').update('default', { displayName: '' })
+        }
+      })
+
+    this.cloud.configure({
+      databaseUrl: DEXIE_CLOUD_URL,
+      requireAuth: true,
+      customLoginGui: true,
+      socialAuth: false,
+    })
 
     // Solo corre la primera vez que se crea la base de datos (instalaciones nuevas).
     this.on('populate', async () => {

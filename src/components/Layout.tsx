@@ -1,7 +1,8 @@
-import { useLiveQuery } from 'dexie-react-hooks'
+import { useLiveQuery, useObservable } from 'dexie-react-hooks'
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { db } from '../lib/db'
+import { AuthModal } from './AuthModal'
 import { OnboardingTour } from './OnboardingTour'
 
 const links = [
@@ -18,6 +19,10 @@ export function Layout() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [tourOpen, setTourOpen] = useState(false)
   const settings = useLiveQuery(() => db.settings.get('default'), [])
+  const currentUser = useObservable(db.cloud.currentUser)
+  const isLoggedIn = Boolean(currentUser?.isLoggedIn)
+  const [displayNameDraft, setDisplayNameDraft] = useState('')
+  const [nameLoadedFor, setNameLoadedFor] = useState<string | null>(null)
 
   useEffect(() => {
     document.body.style.overflow = menuOpen ? 'hidden' : ''
@@ -39,9 +44,32 @@ export function Layout() {
     if (settings && !settings.hasSeenOnboarding) setTourOpen(true)
   }, [settings])
 
+  // Recarga el nombre cada vez que cambia de usuario (login/logout/otra cuenta),
+  // no solo la primera vez — cada cuenta tiene su propio settings.displayName.
+  useEffect(() => {
+    if (settings && nameLoadedFor !== (currentUser?.userId ?? null)) {
+      setDisplayNameDraft(settings.displayName)
+      setNameLoadedFor(currentUser?.userId ?? null)
+    }
+  }, [settings, currentUser?.userId, nameLoadedFor])
+
   async function handleCloseTour() {
     setTourOpen(false)
     await db.settings.update('default', { hasSeenOnboarding: true })
+  }
+
+  // La confirmación (si hay cambios sin sincronizar) la maneja Dexie Cloud solo,
+  // mostrándose a través de <AuthModal /> — no hace falta un confirm() propio aquí.
+  async function handleAuthClick() {
+    if (isLoggedIn) {
+      await db.cloud.logout()
+    } else {
+      await db.cloud.login()
+    }
+  }
+
+  async function handleSaveName() {
+    await db.settings.update('default', { displayName: displayNameDraft.trim() })
   }
 
   return (
@@ -84,6 +112,16 @@ export function Layout() {
 
             <button
               type="button"
+              onClick={handleAuthClick}
+              aria-label={isLoggedIn ? `Cerrar sesión (${currentUser?.email ?? ''})` : 'Iniciar sesión'}
+              title={isLoggedIn ? `Sesión iniciada: ${currentUser?.email ?? ''}` : 'Iniciar sesión / sincronizar'}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg text-black/55 transition hover:bg-black/5"
+            >
+              {isLoggedIn ? '👤' : '🔑'}
+            </button>
+
+            <button
+              type="button"
               onClick={() => setMenuOpen(true)}
               aria-label="Abrir menú"
               aria-expanded={menuOpen}
@@ -118,6 +156,54 @@ export function Layout() {
             ✕
           </button>
         </div>
+
+        <div className="border-b border-black/10 p-4">
+          <p className="text-xs font-medium uppercase tracking-wide text-black/40">Mi cuenta</p>
+          {isLoggedIn ? (
+            <>
+              <p className="mt-1 truncate text-sm text-black/70">{currentUser?.email}</p>
+              <label className="mt-3 flex flex-col gap-1 text-xs text-black/50">
+                Tu nombre
+                <div className="flex gap-2">
+                  <input
+                    value={displayNameDraft}
+                    onChange={(e) => setDisplayNameDraft(e.target.value)}
+                    placeholder="¿Cómo te llamas?"
+                    className="min-w-0 flex-1 rounded-lg border border-black/15 bg-white/70 px-2 py-1.5 text-sm text-black/80"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveName}
+                    className="shrink-0 rounded-lg bg-sage px-3 py-1.5 text-xs font-semibold text-black/80 hover:brightness-95"
+                  >
+                    Guardar
+                  </button>
+                </div>
+              </label>
+              <button
+                type="button"
+                onClick={handleAuthClick}
+                className="mt-3 text-xs font-medium text-black/50 underline hover:text-black/70"
+              >
+                Cerrar sesión
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="mt-1 text-sm text-black/60">
+                Aún no has iniciado sesión — tus datos solo están guardados en este dispositivo.
+              </p>
+              <button
+                type="button"
+                onClick={handleAuthClick}
+                className="mt-3 rounded-full bg-sage px-4 py-1.5 text-sm font-semibold text-black/80 hover:brightness-95"
+              >
+                🔑 Iniciar sesión
+              </button>
+            </>
+          )}
+        </div>
+
         <nav className="flex flex-col gap-1 p-3">
           {links.map((link) => (
             <NavLink
@@ -145,6 +231,7 @@ export function Layout() {
       </main>
 
       <OnboardingTour open={tourOpen} onClose={handleCloseTour} />
+      <AuthModal />
     </div>
   )
 }

@@ -26,3 +26,6 @@ dev-dist
 
 # Claude Code local settings (machine-specific)
 .claude/settings.local.json
+
+# Dexie Cloud CLI credential — grants management access to the database, never commit
+dexie-cloud.key
