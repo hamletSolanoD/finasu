@@ -53,15 +53,24 @@ export function useFloatingPosition(
       const rect = el.getBoundingClientRect()
       const margin = 4
 
-      let top = rect.bottom + margin
-      if (top + panelHeight > window.innerHeight && rect.top - margin - panelHeight > 0) {
-        top = rect.top - margin - panelHeight
+      // visualViewport refleja el área realmente visible (en iOS/Android, el
+      // teclado en pantalla encoge esto sin cambiar window.innerHeight/Width,
+      // lo que hacía que el panel apareciera desalineado del trigger real).
+      const vv = window.visualViewport
+      const viewportHeight = vv?.height ?? window.innerHeight
+      const viewportWidth = vv?.width ?? window.innerWidth
+      const offsetLeft = vv?.offsetLeft ?? 0
+      const offsetTop = vv?.offsetTop ?? 0
+
+      let top = rect.bottom + margin - offsetTop
+      if (top + panelHeight > viewportHeight && rect.top - margin - panelHeight - offsetTop > 0) {
+        top = rect.top - margin - panelHeight - offsetTop
       }
 
       const width = panelWidth ?? rect.width
-      let left = rect.left
-      if (left + width > window.innerWidth) {
-        left = Math.max(8, window.innerWidth - width - 8)
+      let left = rect.left - offsetLeft
+      if (left + width > viewportWidth) {
+        left = Math.max(8, viewportWidth - width - 8)
       }
 
       setPos({ top, left, triggerWidth: rect.width })
@@ -70,9 +79,13 @@ export function useFloatingPosition(
     reposition()
     window.addEventListener('scroll', reposition, true)
     window.addEventListener('resize', reposition)
+    window.visualViewport?.addEventListener('resize', reposition)
+    window.visualViewport?.addEventListener('scroll', reposition)
     return () => {
       window.removeEventListener('scroll', reposition, true)
       window.removeEventListener('resize', reposition)
+      window.visualViewport?.removeEventListener('resize', reposition)
+      window.visualViewport?.removeEventListener('scroll', reposition)
     }
   }, [open, triggerRef, panelHeight, panelWidth])
 

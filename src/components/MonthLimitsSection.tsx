@@ -75,7 +75,7 @@ function IncomeRow({
   }
 
   return (
-    <div className="rounded-xl border border-dashed border-sky/50 bg-sky/10 p-3">
+    <div className="rounded-xl border border-dashed border-sage bg-sage/15 p-3">
       <span className="font-medium">💵 Ingreso de este mes</span>
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <span className="text-sm text-black/50">$</span>

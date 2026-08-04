@@ -28,13 +28,13 @@ const DEFAULT_SETTINGS: AppSettings = {
   id: 'default',
   firstUseMonth: monthKeyWithOffset(0),
   hasSeenOnboarding: false,
+  displayName: '',
 }
 
 /**
- * Paso 1 de la migración a Dexie Cloud: requireAuth queda en false a propósito,
- * para no exigir login todavía y poder verificar en producción que la sincronización
- * de los datos que ya existían localmente funciona bien antes de bloquear el uso
- * de la app detrás de un login.
+ * Login obligatorio: sin sesión, Dexie Cloud filtra todo por cuenta y la app se
+ * ve vacía aunque los datos sigan ahí — mejor exigir login desde el inicio que
+ * dejar a alguien usándola "sin cuenta" y confundido pensando que perdió todo.
  */
 const DEXIE_CLOUD_URL = 'https://zlcp5maax.dexie.cloud'
 
@@ -462,9 +462,39 @@ class FinasuDB extends Dexie {
         }
       })
 
+    // v17: nombre para mostrar en "Mi cuenta", ligado a Dexie Cloud — cada usuario
+    // pone el suyo (queda vacío si no lo llena).
+    this.version(17)
+      .stores({
+        products: 'id, name, categoryId',
+        priceEntries: 'id, productId, store',
+        categories: 'id, name',
+        expenses: 'id, status, capturedAt',
+        expenseItems: 'id, expenseId, categoryId',
+        expenseCategories: 'id, name',
+        categoryLimits: 'id, categoryId, monthKey',
+        savingsGoals: 'id, name',
+        savingsDeposits: 'id, goalId, periodIndex',
+        futureExpenses: 'id, fechaObjetivo',
+        settings: 'id',
+        monthlyIncomes: 'id, monthKey',
+        savingsGoalDeletions: 'id, deletedAt',
+        projects: 'id, name',
+        projectItems: 'id, projectId, purchased',
+        projectPriceEntries: 'id, projectItemId, store',
+      })
+      .upgrade(async (tx) => {
+        const settings = await tx.table('settings').get('default')
+        if (settings && settings.displayName == null) {
+          await tx.table('settings').update('default', { displayName: '' })
+        }
+      })
+
     this.cloud.configure({
       databaseUrl: DEXIE_CLOUD_URL,
-      requireAuth: false,
+      requireAuth: true,
+      customLoginGui: true,
+      socialAuth: false,
     })
 
     // Solo corre la primera vez que se crea la base de datos (instalaciones nuevas).
