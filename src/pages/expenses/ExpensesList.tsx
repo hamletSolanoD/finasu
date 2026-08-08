@@ -61,7 +61,19 @@ function BudgetAlerts() {
 }
 
 function ExpensesList() {
-  const expenses = useLiveQuery(() => db.expenses.orderBy('capturedAt').reverse().toArray(), [])
+  // Ordenamos por la fecha real del gasto (no por cuándo se capturó): a veces se registran
+  // hoy tickets de días atrás. Fecha 'YYYY-MM-DD' descendente, y dentro del mismo día,
+  // el capturado más reciente primero. En memoria a propósito — el volumen de esta app
+  // no amerita un índice nuevo ni bump de schema.
+  const expenses = useLiveQuery(
+    () =>
+      db.expenses
+        .toArray()
+        .then((all) =>
+          all.sort((a, b) => (a.fecha === b.fecha ? b.capturedAt - a.capturedAt : b.fecha < a.fecha ? -1 : 1)),
+        ),
+    [],
+  )
   const items = useLiveQuery(() => db.expenseItems.toArray(), [])
   const stores = useLiveQuery(() => db.stores.toArray(), [])
 

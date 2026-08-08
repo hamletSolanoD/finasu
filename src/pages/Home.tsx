@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link } from 'react-router-dom'
 import { HomeStatusPanel } from '../components/HomeStatusPanel'
-import { NotificationsPanel } from '../components/NotificationsPanel'
+import { WarningsPanel } from '../components/WarningsPanel'
 import { SmartSearch } from '../components/SmartSearch'
 import { db } from '../lib/db'
 
@@ -36,7 +36,7 @@ function Home() {
       </div>
 
       <div className="mt-4">
-        <NotificationsPanel />
+        <WarningsPanel />
       </div>
 
       <p className="mt-6 font-display text-sm font-semibold uppercase tracking-[0.2em] text-black/40">

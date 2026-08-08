@@ -5,6 +5,12 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
+  // Fecha de build visible en el menú de la app — para poder confirmar qué
+  // versión está corriendo un teléfono cuando "no se ve el cambio" (la PWA
+  // tarda un ciclo de cerrar/abrir en activar la versión nueva).
+  define: {
+    __BUILD_DATE__: JSON.stringify(new Date().toISOString()),
+  },
   plugins: [
     react(),
     tailwindcss(),

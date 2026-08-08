@@ -3,7 +3,9 @@ import { useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { db, updateSettings } from '../lib/db'
 import { AuthModal } from './AuthModal'
+import { NotificationsBell } from './NotificationsBell'
 import { OnboardingTour } from './OnboardingTour'
+import { ToastHost } from './ToastHost'
 
 const links = [
   { to: '/', label: 'Inicio', icon: '🏠', end: true },
@@ -29,6 +31,9 @@ export function Layout() {
   const isLoggedIn = Boolean(currentUser?.isLoggedIn)
   const [displayNameDraft, setDisplayNameDraft] = useState('')
   const [nameLoadedFor, setNameLoadedFor] = useState<string | null>(null)
+  const [editingName, setEditingName] = useState(false)
+  const [nameError, setNameError] = useState<string | null>(null)
+  const [nameSavedFlash, setNameSavedFlash] = useState(false)
 
   useEffect(() => {
     document.body.style.overflow = menuOpen ? 'hidden' : ''
@@ -74,8 +79,30 @@ export function Layout() {
     }
   }
 
+  // El ✓ de "guardado" se va solo después de un momento.
+  useEffect(() => {
+    if (!nameSavedFlash) return
+    const timer = setTimeout(() => setNameSavedFlash(false), 2500)
+    return () => clearTimeout(timer)
+  }, [nameSavedFlash])
+
+  // Con try/catch para que un fallo al guardar NUNCA sea silencioso — el error
+  // se muestra en rojo debajo del input.
   async function handleSaveName() {
-    await updateSettings({ displayName: displayNameDraft.trim() })
+    setNameError(null)
+    try {
+      await updateSettings({ displayName: displayNameDraft.trim() })
+      setNameSavedFlash(true)
+      setEditingName(false)
+    } catch (err) {
+      setNameError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  function handleStartEditingName() {
+    setDisplayNameDraft(settings?.displayName ?? '')
+    setNameError(null)
+    setEditingName(true)
   }
 
   return (
@@ -105,6 +132,8 @@ export function Layout() {
                   </NavLink>
                 ))}
             </nav>
+
+            <NotificationsBell />
 
             {!settings?.hasSeenOnboarding && (
               <button
@@ -195,24 +224,43 @@ export function Layout() {
             {isLoggedIn ? (
               <>
                 <p className="mt-1 truncate text-sm text-black/70">{currentUser?.email}</p>
-                <label className="mt-3 flex flex-col gap-1 text-xs text-black/50">
-                  Tu nombre
-                  <div className="flex gap-2">
-                    <input
-                      value={displayNameDraft}
-                      onChange={(e) => setDisplayNameDraft(e.target.value)}
-                      placeholder="¿Cómo te llamas?"
-                      className="min-w-0 flex-1 rounded-lg border border-black/15 bg-white/70 px-2 py-1.5 text-sm text-black/80"
-                    />
+                {settings?.displayName.trim() && !editingName ? (
+                  <div className="mt-3 flex items-center gap-2">
+                    <p className="truncate text-sm text-black/70">
+                      Hola, <span className="font-semibold">{settings.displayName}</span>
+                    </p>
+                    {nameSavedFlash && <span className="text-xs font-semibold text-green-700">✓</span>}
                     <button
                       type="button"
-                      onClick={handleSaveName}
-                      className="shrink-0 rounded-lg bg-sage px-3 py-1.5 text-xs font-semibold text-black/80 hover:brightness-95"
+                      onClick={handleStartEditingName}
+                      aria-label="Editar tu nombre"
+                      title="Editar nombre"
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm text-black/50 transition hover:bg-black/5"
                     >
-                      Guardar
+                      ✏️
                     </button>
                   </div>
-                </label>
+                ) : (
+                  <label className="mt-3 flex flex-col gap-1 text-xs text-black/50">
+                    Tu nombre
+                    <div className="flex gap-2">
+                      <input
+                        value={displayNameDraft}
+                        onChange={(e) => setDisplayNameDraft(e.target.value)}
+                        placeholder="¿Cómo te llamas?"
+                        className="min-w-0 flex-1 rounded-lg border border-black/15 bg-white/70 px-2 py-1.5 text-sm text-black/80"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSaveName}
+                        className="shrink-0 rounded-lg bg-sage px-3 py-1.5 text-xs font-semibold text-black/80 hover:brightness-95"
+                      >
+                        Guardar
+                      </button>
+                    </div>
+                    {nameError && <p className="text-xs text-red-600">No se pudo guardar: {nameError}</p>}
+                  </label>
+                )}
                 <button
                   type="button"
                   onClick={handleAuthClick}
@@ -236,6 +284,17 @@ export function Layout() {
               </>
             )}
           </div>
+
+          {/* Sello de build — para confirmar qué versión corre el teléfono del usuario. */}
+          <p className="px-4 pb-3 text-[10px] text-black/30">
+            Versión del{' '}
+            {new Intl.DateTimeFormat('es-MX', {
+              day: 'numeric',
+              month: 'short',
+              hour: '2-digit',
+              minute: '2-digit',
+            }).format(new Date(__BUILD_DATE__))}
+          </p>
         </div>
       </aside>
 
@@ -245,6 +304,7 @@ export function Layout() {
 
       <OnboardingTour open={tourOpen} onClose={handleCloseTour} />
       <AuthModal />
+      <ToastHost />
     </div>
   )
 }

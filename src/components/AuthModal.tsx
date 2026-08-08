@@ -173,6 +173,12 @@ export function AuthModal() {
           {fieldNames.map((name) => {
             const field = interaction.fields[name]
             const inputType = field.type === 'email' ? 'email' : field.type === 'password' ? 'password' : 'text'
+            const isOtp = interaction.type === 'otp' || field.type === 'otp'
+            const isEmail = inputType === 'email'
+            // Nota: la API WebOTP (navigator.credentials.get({ otp: ... })) NO aplica aquí —
+            // solo funciona con códigos que llegan por SMS con un formato especial, y el código
+            // de Dexie Cloud llega por correo. Lo máximo en web es autoComplete='one-time-code',
+            // que deja que iOS (Mail) y Android (Gmail/SMS) sugieran el código sobre el teclado.
             return (
               <input
                 key={name}
@@ -181,6 +187,11 @@ export function AuthModal() {
                 autoFocus
                 value={values[name] ?? ''}
                 onChange={(e) => setValues((v) => ({ ...v, [name]: e.target.value }))}
+                autoComplete={isOtp ? 'one-time-code' : isEmail ? 'email' : undefined}
+                inputMode={isEmail ? 'email' : undefined}
+                autoCapitalize={isOtp ? 'characters' : isEmail ? 'none' : undefined}
+                autoCorrect={isOtp || isEmail ? 'off' : undefined}
+                spellCheck={isOtp ? false : undefined}
                 className="rounded-xl border border-black/15 bg-white/70 px-3 py-2 text-black/80"
               />
             )
