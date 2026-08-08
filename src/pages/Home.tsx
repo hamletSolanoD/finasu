@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link } from 'react-router-dom'
 import { HomeStatusPanel } from '../components/HomeStatusPanel'
-import { MonthlyReminderBanner } from '../components/MonthlyReminderBanner'
+import { NotificationsPanel } from '../components/NotificationsPanel'
 import { SmartSearch } from '../components/SmartSearch'
 import { db } from '../lib/db'
 
@@ -36,7 +36,7 @@ function Home() {
       </div>
 
       <div className="mt-4">
-        <MonthlyReminderBanner />
+        <NotificationsPanel />
       </div>
 
       <p className="mt-6 font-display text-sm font-semibold uppercase tracking-[0.2em] text-black/40">
@@ -51,7 +51,9 @@ function Home() {
       <div className="mt-6 grid grid-cols-3 gap-3 sm:grid-cols-6">
         <HubTile to="/gastos/escanear" icon="📷" label="Escanear" />
         <HubTile to="/gastos" icon="🧾" label="Gastos" />
+        <HubTile to="/gastos/categorias" icon="🏷️" label="Límites" />
         <HubTile to="/ahorro" icon="💰" label="Ahorro" />
+        <HubTile to="/tarjetas" icon="💳" label="Tarjetas" />
         <HubTile to="/proyectos" icon="🛠️" label="Proyectos" />
         <HubTile to="/productos-frecuentes" icon="🛒" label="Productos" />
         <HubTile to="/tiendas" icon="🏬" label="Tiendas" />

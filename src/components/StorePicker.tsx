@@ -1,5 +1,6 @@
 import { useRef, useState, type ChangeEvent } from 'react'
 import { fileToResizedDataUrl } from '../lib/image'
+import { useModalBack } from '../lib/useModalBack'
 import type { Store } from '../lib/types'
 import { ChevronDownIcon } from './icons'
 
@@ -34,6 +35,9 @@ export function StorePicker({
   const [newIcon, setNewIcon] = useState(STORE_ICON_PALETTE[0])
   const [newImage, setNewImage] = useState<string | undefined>(undefined)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // El botón atrás del teléfono cierra el modal en vez de salirse de la pantalla.
+  useModalBack(open, handleClose)
 
   const selected = stores.find((s) => s.id === value)
   const filtered = stores.filter((s) => s.name.toLowerCase().includes(search.trim().toLowerCase()))

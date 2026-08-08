@@ -57,6 +57,7 @@ function FutureExpenseRow({ expense }: { expense: FutureExpense }) {
 export function FutureExpensesPanel() {
   const expenses = useLiveQuery(() => db.futureExpenses.orderBy('fechaObjetivo').toArray(), [])
 
+  const [creating, setCreating] = useState(false)
   const [nombre, setNombre] = useState('')
   const [montoObjetivo, setMontoObjetivo] = useState<number | ''>('')
   const [fechaObjetivo, setFechaObjetivo] = useState('')
@@ -75,11 +76,12 @@ export function FutureExpensesPanel() {
     setNombre('')
     setMontoObjetivo('')
     setFechaObjetivo('')
+    setCreating(false)
   }
 
   return (
     <div>
-      <ul className="mt-6 flex flex-col gap-3">
+      <ul className="flex flex-col gap-3">
         {(expenses ?? []).map((expense) => (
           <FutureExpenseRow key={expense.id} expense={expense} />
         ))}
@@ -91,40 +93,59 @@ export function FutureExpensesPanel() {
         </div>
       )}
 
-      <form onSubmit={handleCreate} className="mt-6 flex flex-col gap-3 rounded-2xl border border-black/10 bg-white/50 p-4">
-        <p className="font-display font-semibold">Agregar gasto futuro</p>
-        <input
-          value={nombre}
-          onChange={(e) => setNombre(e.target.value)}
-          placeholder="Ej. Sacar la visa"
-          className="rounded-xl border border-black/15 bg-white/70 px-3 py-2 text-black/80"
-        />
-        <div className="grid grid-cols-2 gap-3">
-          <label className="flex flex-col gap-1 text-sm text-black/60">
-            Monto objetivo
-            <input
-              type="number"
-              min="0"
-              step="any"
-              value={montoObjetivo}
-              onChange={(e) => setMontoObjetivo(e.target.value === '' ? '' : Number(e.target.value))}
-              placeholder="Ej. 5000"
-              className="rounded-xl border border-black/15 bg-white/70 px-3 py-2 text-black/80"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm text-black/60">
-            Fecha (opcional)
-            <DatePicker value={fechaObjetivo} onChange={setFechaObjetivo} />
-          </label>
-        </div>
+      {creating ? (
+        <form onSubmit={handleCreate} className="mt-4 flex flex-col gap-3 rounded-2xl border border-black/10 bg-white/50 p-4">
+          <p className="font-display font-semibold">Agregar gasto futuro</p>
+          <input
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            placeholder="Ej. Sacar la visa"
+            className="rounded-xl border border-black/15 bg-white/70 px-3 py-2 text-black/80"
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <label className="flex flex-col gap-1 text-sm text-black/60">
+              Monto objetivo
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={montoObjetivo}
+                onChange={(e) => setMontoObjetivo(e.target.value === '' ? '' : Number(e.target.value))}
+                placeholder="Ej. 5000"
+                className="rounded-xl border border-black/15 bg-white/70 px-3 py-2 text-black/80"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-sm text-black/60">
+              Fecha (opcional)
+              <DatePicker value={fechaObjetivo} onChange={setFechaObjetivo} />
+            </label>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={!nombre.trim() || montoObjetivo === '' || montoObjetivo <= 0}
+              className="rounded-full bg-sage px-5 py-2.5 font-display font-semibold text-black/80 transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Agregar
+            </button>
+            <button
+              type="button"
+              onClick={() => setCreating(false)}
+              className="rounded-full px-5 py-2 text-sm font-medium text-black/50 hover:bg-black/5"
+            >
+              Cancelar
+            </button>
+          </div>
+        </form>
+      ) : (
         <button
-          type="submit"
-          disabled={!nombre.trim() || montoObjetivo === '' || montoObjetivo <= 0}
-          className="self-start rounded-full bg-sage px-5 py-2.5 font-display font-semibold text-black/80 transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"
+          type="button"
+          onClick={() => setCreating(true)}
+          className="mt-4 rounded-full bg-sage px-5 py-2.5 font-display font-semibold text-black/80 transition hover:brightness-95"
         >
-          Agregar
+          + Nuevo gasto futuro
         </button>
-      </form>
+      )}
     </div>
   )
 }

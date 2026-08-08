@@ -49,6 +49,38 @@ export function computeBudgetState(spent: number, limit: number): BudgetState {
   }
 }
 
+/** Cuántos puntos porcentuales puede ir el gasto por delante del avance del mes antes de avisar. */
+export const PACE_AHEAD_MARGIN = 25
+
+export type SpendingPaceStatus = 'ok' | 'adelantado' | 'critico' | 'excedido'
+
+export interface SpendingPace {
+  monthElapsedPercent: number
+  percentUsed: number
+  status: SpendingPaceStatus
+}
+
+/**
+ * Compara qué tan avanzado va el gasto contra qué tan avanzado va el mes.
+ * 'adelantado' = vas gastando más rápido de lo que corre el mes (aviso discreto,
+ * porque no todos los gastos se reparten parejo en el mes), 'critico' = ya casi
+ * te acabas el límite (mismo umbral que isClose de computeBudgetState),
+ * 'excedido' = ya te pasaste del límite.
+ */
+export function computeSpendingPace(spent: number, limit: number, now: Date = new Date()): SpendingPace {
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+  const monthElapsedPercent = (now.getDate() / daysInMonth) * 100
+  const { percentUsed, isOver, isClose } = computeBudgetState(spent, limit)
+  const status: SpendingPaceStatus = isOver
+    ? 'excedido'
+    : isClose
+      ? 'critico'
+      : percentUsed > monthElapsedPercent + PACE_AHEAD_MARGIN
+        ? 'adelantado'
+        : 'ok'
+  return { monthElapsedPercent, percentUsed, status }
+}
+
 export interface CategoryAlert {
   category: ExpenseCategory
   state: BudgetState

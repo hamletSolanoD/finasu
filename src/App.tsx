@@ -15,6 +15,7 @@ import OtherMonths from './pages/expenses/OtherMonths'
 import ScanTicket from './pages/expenses/ScanTicket'
 import UncategorizedItems from './pages/expenses/UncategorizedItems'
 import SavingsHub from './pages/savings/SavingsHub'
+import CreditCardsHub from './pages/creditCards/CreditCardsHub'
 import AddProject from './pages/projects/AddProject'
 import ProjectDetail from './pages/projects/ProjectDetail'
 import ProjectsList from './pages/projects/ProjectsList'
@@ -41,6 +42,7 @@ function App() {
         <Route path="/proyectos" element={<ProjectsList />} />
         <Route path="/proyectos/nuevo" element={<AddProject />} />
         <Route path="/proyectos/:id" element={<ProjectDetail />} />
+        <Route path="/tarjetas" element={<CreditCardsHub />} />
       </Route>
     </Routes>
   )

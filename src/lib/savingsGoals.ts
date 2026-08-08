@@ -1,6 +1,14 @@
 import type { SavingsDeposit, SavingsDurationUnit, SavingsFrequency, SavingsGoal } from './types'
 
-export const ICON_PALETTE = ['💰', '🏦', '📈', '🪙', '🐷', '💎', '🏠', '🎓', '✈️', '💍', '🚗', '🩺']
+export const ICON_PALETTE = [
+  // Los de siempre
+  '💰', '🏦', '📈', '🪙', '🐷', '💎', '🏠', '🎓', '✈️', '💍', '🚗', '🩺',
+  // Representativos
+  '🏖️', '👶', '🐶', '🐱', '💻', '📱', '🎮', '👗', '🛋️', '🎁', '🎉',
+  // Corazones y formas genéricas
+  '❤️', '💙', '💚', '💛', '🧡', '💜', '🖤', '🤍', '💖',
+  '⭐', '🌟', '✨', '🔷', '🔶', '🔴', '🟢', '🔵', '🟡', '⚪', '⬛',
+]
 
 export const DURATION_UNIT_OPTIONS: { value: SavingsDurationUnit; label: string; days: number }[] = [
   { value: 'semanas', label: 'semanas', days: 7 },

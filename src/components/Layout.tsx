@@ -1,19 +1,25 @@
 import { useLiveQuery, useObservable } from 'dexie-react-hooks'
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
-import { db } from '../lib/db'
+import { db, updateSettings } from '../lib/db'
 import { AuthModal } from './AuthModal'
 import { OnboardingTour } from './OnboardingTour'
 
 const links = [
   { to: '/', label: 'Inicio', icon: '🏠', end: true },
   { to: '/gastos', label: 'Gastos', icon: '🧾' },
+  { to: '/gastos/categorias', label: 'Categorías y límites', icon: '🏷️' },
   { to: '/ahorro', label: 'Ahorro', icon: '💰' },
+  { to: '/tarjetas', label: 'Tarjetas', icon: '💳' },
   { to: '/proyectos', label: 'Proyectos', icon: '🛠️' },
   { to: '/productos-frecuentes', label: 'Productos frecuentes', icon: '🛒' },
   { to: '/tiendas', label: 'Tiendas', icon: '🏬' },
   { to: '/resumen', label: 'Resumen', icon: '📊' },
 ]
+
+// El nav horizontal de desktop se satura con tantos links — Resumen y Categorías
+// quedan accesibles desde el menú lateral (y Categorías también desde Gastos).
+const hiddenInDesktopNav = ['/resumen', '/gastos/categorias']
 
 export function Layout() {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -55,7 +61,7 @@ export function Layout() {
 
   async function handleCloseTour() {
     setTourOpen(false)
-    await db.settings.update('default', { hasSeenOnboarding: true })
+    await updateSettings({ hasSeenOnboarding: true })
   }
 
   // La confirmación (si hay cambios sin sincronizar) la maneja Dexie Cloud solo,
@@ -69,7 +75,7 @@ export function Layout() {
   }
 
   async function handleSaveName() {
-    await db.settings.update('default', { displayName: displayNameDraft.trim() })
+    await updateSettings({ displayName: displayNameDraft.trim() })
   }
 
   return (
@@ -83,7 +89,7 @@ export function Layout() {
           <div className="flex items-center gap-1">
             <nav className="hidden gap-1 sm:flex">
               {links
-                .filter((link) => link.to !== '/resumen')
+                .filter((link) => !hiddenInDesktopNav.includes(link.to))
                 .map((link) => (
                   <NavLink
                     key={link.to}
@@ -100,32 +106,24 @@ export function Layout() {
                 ))}
             </nav>
 
-            <button
-              type="button"
-              onClick={() => setTourOpen(true)}
-              aria-label="Ver tour de bienvenida"
-              title="Ver tour"
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg text-black/55 transition hover:bg-black/5"
-            >
-              🎓
-            </button>
-
-            <button
-              type="button"
-              onClick={handleAuthClick}
-              aria-label={isLoggedIn ? `Cerrar sesión (${currentUser?.email ?? ''})` : 'Iniciar sesión'}
-              title={isLoggedIn ? `Sesión iniciada: ${currentUser?.email ?? ''}` : 'Iniciar sesión / sincronizar'}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg text-black/55 transition hover:bg-black/5"
-            >
-              {isLoggedIn ? '👤' : '🔑'}
-            </button>
+            {!settings?.hasSeenOnboarding && (
+              <button
+                type="button"
+                onClick={() => setTourOpen(true)}
+                aria-label="Ver tour de bienvenida"
+                title="Ver tour"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg text-black/55 transition hover:bg-black/5"
+              >
+                🎓
+              </button>
+            )}
 
             <button
               type="button"
               onClick={() => setMenuOpen(true)}
               aria-label="Abrir menú"
               aria-expanded={menuOpen}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xl text-black/70 transition hover:bg-black/5 sm:hidden"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xl text-black/70 transition hover:bg-black/5"
             >
               ☰
             </button>
@@ -136,12 +134,12 @@ export function Layout() {
       <div
         onClick={() => setMenuOpen(false)}
         aria-hidden={!menuOpen}
-        className={`fixed inset-0 z-40 bg-black/40 transition-opacity duration-300 sm:hidden ${
+        className={`fixed inset-0 z-40 bg-black/40 transition-opacity duration-300 ${
           menuOpen ? 'opacity-100' : 'pointer-events-none opacity-0'
         }`}
       />
       <aside
-        className={`fixed inset-y-0 right-0 z-50 flex w-72 max-w-[80vw] flex-col bg-cream shadow-xl transition-transform duration-300 sm:hidden ${
+        className={`fixed inset-y-0 right-0 z-50 flex w-72 max-w-[80vw] flex-col overflow-y-auto bg-cream shadow-xl transition-transform duration-300 ${
           menuOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
@@ -155,53 +153,6 @@ export function Layout() {
           >
             ✕
           </button>
-        </div>
-
-        <div className="border-b border-black/10 p-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-black/40">Mi cuenta</p>
-          {isLoggedIn ? (
-            <>
-              <p className="mt-1 truncate text-sm text-black/70">{currentUser?.email}</p>
-              <label className="mt-3 flex flex-col gap-1 text-xs text-black/50">
-                Tu nombre
-                <div className="flex gap-2">
-                  <input
-                    value={displayNameDraft}
-                    onChange={(e) => setDisplayNameDraft(e.target.value)}
-                    placeholder="¿Cómo te llamas?"
-                    className="min-w-0 flex-1 rounded-lg border border-black/15 bg-white/70 px-2 py-1.5 text-sm text-black/80"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleSaveName}
-                    className="shrink-0 rounded-lg bg-sage px-3 py-1.5 text-xs font-semibold text-black/80 hover:brightness-95"
-                  >
-                    Guardar
-                  </button>
-                </div>
-              </label>
-              <button
-                type="button"
-                onClick={handleAuthClick}
-                className="mt-3 text-xs font-medium text-black/50 underline hover:text-black/70"
-              >
-                Cerrar sesión
-              </button>
-            </>
-          ) : (
-            <>
-              <p className="mt-1 text-sm text-black/60">
-                Aún no has iniciado sesión — tus datos solo están guardados en este dispositivo.
-              </p>
-              <button
-                type="button"
-                onClick={handleAuthClick}
-                className="mt-3 rounded-full bg-sage px-4 py-1.5 text-sm font-semibold text-black/80 hover:brightness-95"
-              >
-                🔑 Iniciar sesión
-              </button>
-            </>
-          )}
         </div>
 
         <nav className="flex flex-col gap-1 p-3">
@@ -224,6 +175,68 @@ export function Layout() {
             </NavLink>
           ))}
         </nav>
+
+        <div className="mt-auto">
+          <div className="px-4 pb-3">
+            <button
+              type="button"
+              onClick={() => {
+                setTourOpen(true)
+                setMenuOpen(false)
+              }}
+              className="text-xs font-medium text-black/50 transition hover:text-black/70"
+            >
+              🎓 Ver tour de bienvenida
+            </button>
+          </div>
+
+          <div className="border-t border-black/10 p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-black/40">Mi cuenta</p>
+            {isLoggedIn ? (
+              <>
+                <p className="mt-1 truncate text-sm text-black/70">{currentUser?.email}</p>
+                <label className="mt-3 flex flex-col gap-1 text-xs text-black/50">
+                  Tu nombre
+                  <div className="flex gap-2">
+                    <input
+                      value={displayNameDraft}
+                      onChange={(e) => setDisplayNameDraft(e.target.value)}
+                      placeholder="¿Cómo te llamas?"
+                      className="min-w-0 flex-1 rounded-lg border border-black/15 bg-white/70 px-2 py-1.5 text-sm text-black/80"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSaveName}
+                      className="shrink-0 rounded-lg bg-sage px-3 py-1.5 text-xs font-semibold text-black/80 hover:brightness-95"
+                    >
+                      Guardar
+                    </button>
+                  </div>
+                </label>
+                <button
+                  type="button"
+                  onClick={handleAuthClick}
+                  className="mt-3 rounded-full border border-black/15 px-4 py-1.5 text-sm font-medium text-black/70 transition hover:bg-black/5"
+                >
+                  Cerrar sesión
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="mt-1 text-sm text-black/60">
+                  Aún no has iniciado sesión — tus datos solo están guardados en este dispositivo.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleAuthClick}
+                  className="mt-3 rounded-full bg-sage px-4 py-1.5 text-sm font-semibold text-black/80 hover:brightness-95"
+                >
+                  🔑 Iniciar sesión
+                </button>
+              </>
+            )}
+          </div>
+        </div>
       </aside>
 
       <main className="mx-auto max-w-4xl px-4 py-10 sm:px-12">

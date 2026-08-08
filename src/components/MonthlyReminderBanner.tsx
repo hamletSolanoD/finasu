@@ -1,19 +1,21 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { allLimitsSetForMonth } from '../lib/categoryLimits'
 import { db } from '../lib/db'
-import { markNotifiedToday, shouldNotifyToday } from '../lib/reminders'
+import { isMonthComplete, markNotifiedToday, shouldNotifyToday } from '../lib/reminders'
 import { isLastDayOfCurrentMonth, monthKeyWithOffset } from '../lib/summary'
 
 /**
  * Aviso persistente arriba de todo en Inicio: aparece desde el día antes de
  * que empiece un mes nuevo y se queda ahí — sin poder descartarlo — hasta que
- * todas las categorías tengan su límite de ese mes establecido.
+ * el mes esté completo (ingreso declarado y límite decidido en cada categoría).
+ *
+ * YA NO SE USA EN INICIO — su contenido vive ahora en NotificationsPanel.
  */
 export function MonthlyReminderBanner() {
   const categories = useLiveQuery(() => db.expenseCategories.toArray(), [])
   const limits = useLiveQuery(() => db.categoryLimits.toArray(), [])
+  const incomes = useLiveQuery(() => db.monthlyIncomes.toArray(), [])
   const [permission, setPermission] = useState<NotificationPermission>('default')
 
   useEffect(() => {
@@ -22,10 +24,11 @@ export function MonthlyReminderBanner() {
 
   const advanceNotice = isLastDayOfCurrentMonth()
   const targetMonthKey = advanceNotice ? monthKeyWithOffset(1) : monthKeyWithOffset(0)
-  const allSet = categories && limits ? allLimitsSetForMonth(categories, limits, targetMonthKey) : true
+  const monthComplete =
+    categories && limits && incomes ? isMonthComplete(categories, limits, incomes, targetMonthKey) : true
 
   useEffect(() => {
-    if (!categories || categories.length === 0 || allSet) return
+    if (!categories || categories.length === 0 || monthComplete) return
     if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
     if (!shouldNotifyToday()) return
     navigator.serviceWorker?.getRegistration().then((reg) => {
@@ -37,10 +40,10 @@ export function MonthlyReminderBanner() {
       })
     })
     markNotifiedToday()
-  }, [categories, allSet, advanceNotice])
+  }, [categories, monthComplete, advanceNotice])
 
-  if (!categories || !limits) return null
-  if (categories.length === 0 || allSet) return null
+  if (!categories || !limits || !incomes) return null
+  if (categories.length === 0 || monthComplete) return null
 
   async function handleEnableNotifications() {
     const result = await Notification.requestPermission()

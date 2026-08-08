@@ -2,7 +2,6 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { STORE_ICON_PALETTE } from '../components/StorePicker'
-import { SwipeableRow } from '../components/SwipeableRow'
 import { db } from '../lib/db'
 import { fileToResizedDataUrl } from '../lib/image'
 import { bestPriceFor } from '../lib/projects'
@@ -49,6 +48,18 @@ function StoreFormModal({
       return
     }
     await db.stores.add({ id: crypto.randomUUID(), name: trimmed, icon, image, createdAt: Date.now() })
+    onClose()
+  }
+
+  async function handleDelete() {
+    if (!store) return
+    if (
+      !confirm(
+        `¿Eliminar la tienda "${store.name}"? Esto no borra los precios ni tickets que ya tengan ese nombre, solo el registro de la tienda.`,
+      )
+    )
+      return
+    await db.stores.delete(store.id)
     onClose()
   }
 
@@ -122,6 +133,15 @@ function StoreFormModal({
               Cancelar
             </button>
           </div>
+          {store && (
+            <button
+              type="button"
+              onClick={handleDelete}
+              className="mt-1 self-start rounded-full border border-red-200 bg-red-50 px-4 py-1.5 text-sm font-medium text-red-700 transition hover:bg-red-100"
+            >
+              🗑️ Eliminar tienda
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -131,19 +151,20 @@ function StoreFormModal({
 /** Sección de arriba: el registro formal de tiendas (alta/edición/borrado). Es independiente
  * de la vista derivada de abajo, que sigue agrupando por el string suelto `store` de
  * priceEntries/projectPriceEntries — ese sistema no se toca. */
-function RegisteredStoresSection() {
+function RegisteredStoresSection({
+  onSelectStore,
+  activeStoreName,
+  noPricesStoreName,
+}: {
+  /** Se llama al tocar una tarjeta — el padre decide qué mostrar abajo. */
+  onSelectStore: (store: Store) => void
+  /** Nombre de la tienda activa (para resaltar su tarjeta) — match case-insensitive. */
+  activeStoreName: string | null
+  /** Si la tienda tocada no tiene precios registrados, su nombre — para el mensaje suave. */
+  noPricesStoreName: string | null
+}) {
   const stores = useLiveQuery(() => db.stores.orderBy('name').toArray(), [])
   const [editingStore, setEditingStore] = useState<Store | null | 'new'>(null)
-
-  async function handleDelete(store: Store) {
-    if (
-      !confirm(
-        `¿Eliminar la tienda "${store.name}"? Esto no borra los precios ni tickets que ya tengan ese nombre, solo el registro de la tienda.`,
-      )
-    )
-      return
-    await db.stores.delete(store.id)
-  }
 
   if (!stores) return null
 
@@ -156,43 +177,57 @@ function RegisteredStoresSection() {
         precios y tickets.
       </p>
 
-      {stores.length === 0 ? (
-        <div className="mt-6 rounded-2xl border border-dashed border-black/15 p-10 text-center text-black/50">
-          Aún no tienes ninguna tienda registrada.
-        </div>
-      ) : (
-        <div className="mt-6 grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {stores.map((store) => (
-            <SwipeableRow key={store.id} onEdit={() => setEditingStore(store)} onDelete={() => handleDelete(store)}>
+      <div className="mt-6 flex snap-x gap-3 overflow-x-auto pb-2">
+        {stores.map((store) => {
+          const isActive =
+            activeStoreName !== null && store.name.trim().toLowerCase() === activeStoreName.trim().toLowerCase()
+          return (
+            <div key={store.id} className="relative shrink-0 snap-start">
               <button
                 type="button"
-                onClick={() => setEditingStore(store)}
-                className="flex w-full items-center gap-3 rounded-2xl border border-black/10 bg-white/60 p-3 text-left transition hover:-translate-y-0.5 hover:shadow-sm"
+                onClick={() => onSelectStore(store)}
+                className={`flex h-28 w-28 flex-col items-center justify-center gap-2 rounded-2xl border bg-white/60 p-2 transition hover:-translate-y-0.5 hover:shadow-sm ${
+                  isActive ? 'border-sage ring-2 ring-sage/40' : 'border-black/10'
+                }`}
               >
                 {store.image ? (
-                  <img src={store.image} alt="" className="h-10 w-10 shrink-0 rounded-lg object-cover" />
+                  <img src={store.image} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" />
                 ) : (
                   <span
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-black/5 text-xl"
+                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-black/5 text-3xl"
                     aria-hidden
                   >
                     {store.icon}
                   </span>
                 )}
-                <span className="truncate font-medium">{store.name}</span>
+                <span className="w-full truncate text-center text-xs font-medium">{store.name}</span>
               </button>
-            </SwipeableRow>
-          ))}
-        </div>
-      )}
+              <button
+                type="button"
+                onClick={() => setEditingStore(store)}
+                aria-label={`Editar ${store.name}`}
+                className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-white/80 text-xs shadow-sm transition hover:bg-white"
+              >
+                ✏️
+              </button>
+            </div>
+          )
+        })}
+        <button
+          type="button"
+          onClick={() => setEditingStore('new')}
+          className="flex h-28 w-28 shrink-0 snap-start flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-black/20 bg-white/40 text-black/50 transition hover:bg-black/5"
+        >
+          <span className="text-2xl" aria-hidden>
+            ＋
+          </span>
+          <span className="text-xs font-medium">Agregar tienda</span>
+        </button>
+      </div>
 
-      <button
-        type="button"
-        onClick={() => setEditingStore('new')}
-        className="mt-4 rounded-full border border-black/15 bg-white/60 px-5 py-2.5 font-display font-semibold text-black/70 transition hover:bg-black/5"
-      >
-        + Agregar tienda
-      </button>
+      {noPricesStoreName && (
+        <p className="mt-2 text-sm text-black/50">Aún no hay precios registrados en esta tienda.</p>
+      )}
 
       {editingStore && (
         <StoreFormModal
@@ -213,6 +248,8 @@ function StoreBrowse() {
   const projectItems = useLiveQuery(() => db.projectItems.toArray(), [])
   const projectPriceEntries = useLiveQuery(() => db.projectPriceEntries.toArray(), [])
   const [selectedStore, setSelectedStore] = useState<string | null>(null)
+  /** Tienda registrada tocada que aún no tiene precios en priceEntries — para el mensaje suave. */
+  const [noPricesStore, setNoPricesStore] = useState<string | null>(null)
 
   const categoryById = useMemo(
     () => new Map((categories ?? []).map((c) => [c.id, c])),
@@ -293,9 +330,27 @@ function StoreBrowse() {
 
   const hasResultsForStore = groupedByCategory.length > 0 || groupedByProject.length > 0
 
+  /** Al tocar una tienda registrada: se busca su nombre (case-insensitive) entre las tiendas
+   * con precios; si hay match se selecciona esa para mostrar qué comprar ahí, y si no,
+   * se avisa suavecito que aún no tiene precios. */
+  function handleSelectRegisteredStore(store: Store) {
+    const match = storeCounts.find(([name]) => name.trim().toLowerCase() === store.name.trim().toLowerCase())
+    if (match) {
+      setNoPricesStore(null)
+      setSelectedStore(match[0] === selectedStore ? null : match[0])
+    } else {
+      setSelectedStore(null)
+      setNoPricesStore(noPricesStore === store.name ? null : store.name)
+    }
+  }
+
   return (
     <div>
-      <RegisteredStoresSection />
+      <RegisteredStoresSection
+        onSelectStore={handleSelectRegisteredStore}
+        activeStoreName={selectedStore ?? noPricesStore}
+        noPricesStoreName={noPricesStore}
+      />
 
       <div className="mt-10 border-t border-dashed border-black/15 pt-8">
         <p className="font-display text-sm font-semibold uppercase tracking-[0.2em] text-black/40">
@@ -319,7 +374,10 @@ function StoreBrowse() {
               return (
                 <button
                   key={store}
-                  onClick={() => setSelectedStore(store === selectedStore ? null : store)}
+                  onClick={() => {
+                    setNoPricesStore(null)
+                    setSelectedStore(store === selectedStore ? null : store)
+                  }}
                   className={`rounded-full px-4 py-2 text-sm font-medium transition ${
                     selectedStore === store
                       ? 'bg-sky text-black/80'

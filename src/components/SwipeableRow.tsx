@@ -28,6 +28,7 @@ export function SwipeableRow({
   const [dragOffset, setDragOffset] = useState(0)
   const dragState = useRef<{ startX: number; moved: boolean; startedOnInteractive: boolean } | null>(null)
   const suppressClickRef = useRef(false)
+  const rootRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const wheelAccumRef = useRef(0)
   const wheelResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -58,6 +59,22 @@ export function SwipeableRow({
     el.addEventListener('wheel', handleWheel, { passive: false })
     return () => el.removeEventListener('wheel', handleWheel)
   }, [])
+
+  // Con la fila abierta, tocar en cualquier lado FUERA de ella la regresa a su
+  // lugar (mismo patrón de "clic afuera" que Dropdown.tsx). pointerdown cubre
+  // mouse y touch a la vez; los toques dentro de la fila (drag, botones de
+  // Editar/Eliminar) quedan contenidos en rootRef y no la cierran.
+  useEffect(() => {
+    if (!open) return
+
+    function handleOutside(e: Event) {
+      const root = rootRef.current
+      if (root && e.target instanceof Node && !root.contains(e.target)) setOpen(false)
+    }
+
+    document.addEventListener('pointerdown', handleOutside)
+    return () => document.removeEventListener('pointerdown', handleOutside)
+  }, [open])
 
   function handlePointerDown(e: PointerEvent) {
     dragState.current = { startX: e.clientX, moved: false, startedOnInteractive: isInteractive(e.target) }
@@ -102,7 +119,7 @@ export function SwipeableRow({
   const x = isDragging ? Math.min(0, Math.max(-ACTION_WIDTH, base + dragOffset)) : base
 
   return (
-    <div className="relative overflow-hidden rounded-2xl">
+    <div ref={rootRef} className="relative overflow-hidden rounded-2xl">
       <div className="absolute inset-y-0 right-0 flex" style={{ width: ACTION_WIDTH }}>
         {onEdit && (
           <button

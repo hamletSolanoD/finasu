@@ -9,6 +9,8 @@ import type {
   AppSettings,
   Category,
   CategoryLimit,
+  CreditCard,
+  CreditCardPayment,
   Expense,
   ExpenseCategory,
   ExpenseItem,
@@ -58,6 +60,8 @@ class FinasuDB extends Dexie {
   projectItems!: Table<ProjectItem, string>
   projectPriceEntries!: Table<ProjectPriceEntry, string>
   stores!: Table<Store, string>
+  creditCards!: Table<CreditCard, string>
+  creditCardPayments!: Table<CreditCardPayment, string>
 
   constructor() {
     super('finasu', { addons: [dexieCloud] })
@@ -553,6 +557,30 @@ class FinasuDB extends Dexie {
         }
       })
 
+    // v20: tarjetas de crédito — gestión de deudas: cada tarjeta con su deuda
+    // actual, día límite de pago y pago mínimo, más el historial de abonos.
+    this.version(20).stores({
+      products: 'id, name, categoryId',
+      priceEntries: 'id, productId, store',
+      categories: 'id, name',
+      expenses: 'id, status, capturedAt',
+      expenseItems: 'id, expenseId, categoryId',
+      expenseCategories: 'id, name',
+      categoryLimits: 'id, categoryId, monthKey',
+      savingsGoals: 'id, name',
+      savingsDeposits: 'id, goalId, periodIndex',
+      futureExpenses: 'id, fechaObjetivo',
+      settings: 'id',
+      monthlyIncomes: 'id, monthKey',
+      savingsGoalDeletions: 'id, deletedAt',
+      projects: 'id, name',
+      projectItems: 'id, projectId, purchased',
+      projectPriceEntries: 'id, projectItemId, store',
+      stores: 'id, name',
+      creditCards: 'id, name',
+      creditCardPayments: 'id, cardId, date',
+    })
+
     this.cloud.configure({
       databaseUrl: DEXIE_CLOUD_URL,
       requireAuth: true,
@@ -570,3 +598,15 @@ class FinasuDB extends Dexie {
 }
 
 export const db = new FinasuDB()
+
+/**
+ * Upsert de la fila única de configuración. Con Dexie Cloud, en una cuenta o
+ * dispositivo nuevo la fila "default" puede no existir todavía (populate solo
+ * corre al crear la base local, no por cuenta) — y Table.update() sobre una
+ * fila inexistente no hace NADA silenciosamente. Ese era el bug de "Guardar
+ * nombre no hace nada". Siempre usar esto en vez de db.settings.update.
+ */
+export async function updateSettings(patch: Partial<AppSettings>): Promise<void> {
+  const existing = await db.settings.get('default')
+  await db.settings.put({ ...DEFAULT_SETTINGS, ...existing, ...patch, id: 'default' })
+}

@@ -5,6 +5,8 @@ import { computeBudgetState } from '../lib/budget'
 import { allLimitsSetForMonth, committedForMonth, getIncomeForMonth, getLimitForMonth } from '../lib/categoryLimits'
 import { formatFechaLarga } from '../lib/date'
 import { db } from '../lib/db'
+import { autoSetIvaLimitForMonth } from '../lib/ivaCategory'
+import { useModalBack } from '../lib/useModalBack'
 import type { CategoryLimit, Expense, ExpenseCategory, ExpenseItem, MonthlyIncome } from '../lib/types'
 import { formatCurrency } from '../lib/units'
 
@@ -74,6 +76,9 @@ function IncomeRow({
       income: parsed,
       setAt: Date.now(),
     })
+    // Con el ingreso declarado, el límite de IVA del mes se pone solo
+    // (nunca pisa uno que ya exista, así que ponerlo a mano antes sigue valiendo).
+    await autoSetIvaLimitForMonth(monthKey, parsed)
   }
 
   return (
@@ -121,6 +126,10 @@ function CategoryExpensesModal({
   categoryItems: ExpenseItem[]
   onClose: () => void
 }) {
+  // El modal solo existe montado (open siempre true): así el botón atrás del
+  // teléfono lo cierra en vez de salirse de la pantalla de límites.
+  useModalBack(true, onClose)
+
   const expensesById = new Map(expenses.map((expense) => [expense.id, expense]))
 
   return (

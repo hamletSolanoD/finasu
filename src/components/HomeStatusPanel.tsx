@@ -6,8 +6,10 @@ import { db } from '../lib/db'
 import { computeCategoryBreakdown, computeMonthOverMonth, monthKeyWithOffset } from '../lib/summary'
 import { formatCurrency } from '../lib/units'
 
-/** Notificaciones importantes en Inicio: si hay categorías en problemas, esas mandan.
- * Si no, un resumen general (sin desglose por categoría — eso se queda en /resumen). */
+/** Resumen general del mes en una tarjeta (sin desglose por categoría — eso se
+ * queda en /resumen). Las alertas por categoría ya no viven aquí: ahora las
+ * muestra NotificationsPanel en Inicio — aquí solo se ajusta el texto para no
+ * decir "vas bien" cuando hay categorías en problemas. */
 export function HomeStatusPanel() {
   const expenses = useLiveQuery(() => db.expenses.toArray(), [])
   const items = useLiveQuery(() => db.expenseItems.toArray(), [])
@@ -18,33 +20,7 @@ export function HomeStatusPanel() {
   if (!expenses || !items || !categories || !limits || !incomes) return null
 
   const alerts = getCategoryAlerts(expenses, items, categories, limits, monthKeyWithOffset(0))
-
-  if (alerts.length > 0) {
-    return (
-      <div className="mt-6 flex flex-col gap-2">
-        {alerts.map(({ category, state }) => (
-          <Link
-            key={category.id}
-            to={`/gastos/categorias#cat-${category.id}`}
-            className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3 text-sm transition hover:-translate-y-0.5 hover:shadow-sm ${
-              state.isOver ? 'border-red-200 bg-red-50 text-red-800' : 'border-amber-200 bg-amber-50 text-amber-800'
-            }`}
-          >
-            <span>
-              {category.icon} {category.name}:{' '}
-              {state.isOver
-                ? `te pasaste por ${formatCurrency(Math.abs(state.remaining))}`
-                : `ya usaste ${Math.round(state.percentUsed)}% de tu límite`}{' '}
-              este mes
-            </span>
-            <span className="font-semibold">
-              {formatCurrency(state.spent)} / {formatCurrency(state.limit)}
-            </span>
-          </Link>
-        ))}
-      </div>
-    )
-  }
+  const hasProblems = alerts.length > 0
 
   const monthKey = monthKeyWithOffset(0)
   const previousMonthKey = monthKeyWithOffset(-1)
@@ -58,9 +34,15 @@ export function HomeStatusPanel() {
   return (
     <Link
       to="/resumen"
-      className="mt-6 block rounded-2xl border border-sage bg-sage/10 p-4 transition hover:bg-sage/20"
+      className={`mt-6 block rounded-2xl border p-4 transition ${
+        hasProblems
+          ? 'border-black/10 bg-white/50 hover:bg-white/80'
+          : 'border-sage bg-sage/10 hover:bg-sage/20'
+      }`}
     >
-      <p className="text-sm font-medium text-black/60">✓ Vas bien este mes</p>
+      <p className="text-sm font-medium text-black/60">
+        {hasProblems ? 'Tu mes hasta ahora' : '✓ Vas bien este mes'}
+      </p>
       <p className="mt-1 font-display text-2xl font-semibold">
         {formatCurrency(total)} <span className="text-sm font-normal text-black/50">gastado</span>
       </p>

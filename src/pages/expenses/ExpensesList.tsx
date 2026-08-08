@@ -9,7 +9,7 @@ import { db } from '../../lib/db'
 import { formatFechaCorta } from '../../lib/date'
 import { monthKeyWithOffset } from '../../lib/summary'
 import { formatCurrency } from '../../lib/units'
-import type { Expense, ExpenseItem } from '../../lib/types'
+import type { Expense, ExpenseItem, Store } from '../../lib/types'
 
 const STATUS_LABEL: Record<Expense['status'], string> = {
   pendiente_de_categorizar: 'Pendiente de categorizar',
@@ -63,6 +63,7 @@ function BudgetAlerts() {
 function ExpensesList() {
   const expenses = useLiveQuery(() => db.expenses.orderBy('capturedAt').reverse().toArray(), [])
   const items = useLiveQuery(() => db.expenseItems.toArray(), [])
+  const stores = useLiveQuery(() => db.stores.toArray(), [])
 
   const [merchantQuery, setMerchantQuery] = useState('')
   const [maxPrice, setMaxPrice] = useState('')
@@ -225,6 +226,7 @@ function ExpensesList() {
                   <ExpenseRows
                     expenses={pending.slice((pendingPage - 1) * PAGE_SIZE, pendingPage * PAGE_SIZE)}
                     items={items ?? []}
+                    stores={stores ?? []}
                   />
                   <Pagination
                     page={pendingPage}
@@ -239,6 +241,7 @@ function ExpensesList() {
                   <ExpenseRows
                     expenses={done.slice((donePage - 1) * PAGE_SIZE, donePage * PAGE_SIZE)}
                     items={items ?? []}
+                    stores={stores ?? []}
                   />
                   <Pagination page={donePage} totalPages={Math.ceil(done.length / PAGE_SIZE)} onChange={setDonePage} />
                 </section>
@@ -259,13 +262,16 @@ async function handleDeleteExpense(expenseId: string) {
   })
 }
 
-function ExpenseRows({ expenses, items }: { expenses: Expense[]; items: ExpenseItem[] }) {
+function ExpenseRows({ expenses, items, stores }: { expenses: Expense[]; items: ExpenseItem[]; stores: Store[] }) {
   return (
     <ul className="flex flex-col gap-2">
       {expenses.map((expense) => {
         const expenseItems = items.filter((i) => i.expenseId === expense.id).sort((a, b) => a.order - b.order)
         const total = expenseItems.reduce((sum, i) => sum + i.monto, 0)
         const categorizedCount = expenseItems.filter((i) => i.categoryId !== null).length
+        // Si el ticket está vinculado a una tienda registrada, se muestra esa (con su ícono/logo)
+        // en lugar del merchant crudo del OCR.
+        const store = expense.storeId ? stores.find((s) => s.id === expense.storeId) : undefined
         const subtitle =
           expense.merchant ??
           (expenseItems.length > 0
@@ -283,9 +289,30 @@ function ExpenseRows({ expenses, items }: { expenses: Expense[]; items: ExpenseI
                   {expense.image && <img src={expense.image} alt="" className="h-full w-full object-cover" />}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">
-                    {formatFechaCorta(expense.fecha)}
-                    {subtitle && <span className="font-normal text-black/50"> · {subtitle}</span>}
+                  <p className="flex min-w-0 items-center gap-1.5 font-medium">
+                    <span className="shrink-0">{formatFechaCorta(expense.fecha)}</span>
+                    {store ? (
+                      <>
+                        <span className="shrink-0 font-normal text-black/40" aria-hidden>
+                          ·
+                        </span>
+                        {store.image ? (
+                          <img src={store.image} alt="" className="h-4 w-4 shrink-0 rounded object-cover" />
+                        ) : (
+                          <span className="shrink-0 text-sm" aria-hidden>
+                            {store.icon}
+                          </span>
+                        )}
+                        <span className="truncate font-normal text-black/50">{store.name}</span>
+                      </>
+                    ) : subtitle ? (
+                      <>
+                        <span className="shrink-0 font-normal text-black/40" aria-hidden>
+                          ·
+                        </span>
+                        <span className="truncate font-normal text-black/50">{subtitle}</span>
+                      </>
+                    ) : null}
                   </p>
                   <div className="mt-1 flex items-center gap-2">
                     <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLE[expense.status]}`}>

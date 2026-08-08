@@ -1,7 +1,8 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getIncomeForMonth } from '../lib/categoryLimits'
+import { computeSpendingPace, PACE_AHEAD_MARGIN } from '../lib/budget'
+import { committedForMonth, getIncomeForMonth } from '../lib/categoryLimits'
 import { db } from '../lib/db'
 import {
   computeCategoryBreakdown,
@@ -56,8 +57,9 @@ function MonthlySummary() {
   const categories = useLiveQuery(() => db.expenseCategories.toArray(), [])
   const settings = useLiveQuery(() => db.settings.get('default'), [])
   const incomes = useLiveQuery(() => db.monthlyIncomes.toArray(), [])
+  const limits = useLiveQuery(() => db.categoryLimits.toArray(), [])
 
-  if (!expenses || !items || !categories || !incomes) return null
+  if (!expenses || !items || !categories || !incomes || !limits) return null
 
   const { total, uncategorized, breakdown } = computeCategoryBreakdown(expenses, items, categories, monthKey)
   const { total: previousTotal } = computeCategoryBreakdown(expenses, items, categories, previousMonthKey)
@@ -65,6 +67,20 @@ function MonthlySummary() {
 
   const income = getIncomeForMonth(monthKey, incomes)?.income ?? null
   const balance = income !== null ? income - total : null
+
+  // Veredicto del mes en curso: gasto total contra el presupuesto (suma de
+  // límites, o el ingreso si no hay límites) según qué tanto va del mes.
+  const limitsTotal = committedForMonth(limits, monthKey)
+  const budgetTotal = limitsTotal > 0 ? limitsTotal : income
+  const pace = offset === 0 && budgetTotal !== null && budgetTotal > 0 ? computeSpendingPace(total, budgetTotal) : null
+  const verdict =
+    pace === null
+      ? null
+      : pace.status === 'excedido'
+        ? { text: 'Ya te pasaste del presupuesto del mes', className: 'text-red-700' }
+        : pace.percentUsed > pace.monthElapsedPercent + PACE_AHEAD_MARGIN
+          ? { text: 'Vas un poco pasado de presupuesto', className: 'text-amber-700' }
+          : { text: '✓ Vas en regla — gastando conforme al mes', className: 'text-emerald-700' }
 
   const firstUseMonth = settings?.firstUseMonth ?? monthKeyWithOffset(0)
   const maxOffset = isLastDayOfCurrentMonth() ? 1 : 0
@@ -99,6 +115,7 @@ function MonthlySummary() {
       <div className="mt-6 rounded-2xl border border-black/10 bg-white/50 p-4">
         <p className="font-display text-3xl font-semibold">{formatCurrency(total)}</p>
         <p className="text-sm text-black/50">gastado este mes</p>
+        {verdict && <p className={`mt-2 text-sm font-medium ${verdict.className}`}>{verdict.text}</p>}
         <div className="mt-2">
           <ChangeBadge change={change} />
         </div>

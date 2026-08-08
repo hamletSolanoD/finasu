@@ -15,6 +15,7 @@ import { computeExpenseStatus } from '../../lib/expenseStatus'
 import { ensureIvaCategory, looksLikeIva } from '../../lib/ivaCategory'
 import { findExistingStoreId, matchStoreByMerchant } from '../../lib/stores'
 import { parseTicketLines } from '../../lib/ticketParser'
+import { useModalBack } from '../../lib/useModalBack'
 
 interface DraftItem {
   id: string
@@ -68,6 +69,9 @@ function ExpenseDetail() {
     }
     setStoreAutoMatchedFor(expense.id)
   }, [expense, stores, loadedFrom, storeId, storeAutoMatchedFor])
+
+  // El botón atrás del teléfono cierra el visor de la foto en vez de irse a Gastos.
+  useModalBack(viewerOpen, () => setViewerOpen(false))
 
   if (!expense) return null
 

@@ -1,6 +1,6 @@
 import { useLiveQuery, useObservable } from 'dexie-react-hooks'
 import { useEffect, useState, type FormEvent } from 'react'
-import { db } from '../lib/db'
+import { db, updateSettings } from '../lib/db'
 
 interface InteractionCopy {
   emoji: string
@@ -47,6 +47,12 @@ function getCopy(type: string): InteractionCopy {
 
 /** Traduce los códigos de alerta de Dexie Cloud a mensajes en español. */
 function friendlyAlertMessage(alert: { messageCode: string; message: string; messageParams: Record<string, string> }): string {
+  if (alert.messageCode === 'LOGOUT_CONFIRMATION') {
+    const n = alert.messageParams.numUnsyncedChanges
+    return n
+      ? `Tienes ${n} cambios sin sincronizar que se perderían.`
+      : 'Tienes cambios sin sincronizar que se perderían.'
+  }
   const map: Record<string, string> = {
     INVALID_OTP: 'Ese código no es válido o ya expiró. Intenta de nuevo.',
     INVALID_EMAIL: 'Ese correo no parece válido.',
@@ -75,12 +81,12 @@ export function AuthModal() {
   }, [interaction?.type])
 
   async function handleSkipName() {
-    await db.settings.update('default', { hasSeenNamePrompt: true })
+    await updateSettings({ hasSeenNamePrompt: true })
   }
 
   async function handleSubmitName(e: FormEvent) {
     e.preventDefault()
-    await db.settings.update('default', { displayName: nameDraft.trim(), hasSeenNamePrompt: true })
+    await updateSettings({ displayName: nameDraft.trim(), hasSeenNamePrompt: true })
   }
 
   // Sin interacción pendiente de Dexie Cloud: si acabas de entrar por primera vez
@@ -145,7 +151,10 @@ export function AuthModal() {
         <h2 className="mt-2 font-display text-xl font-semibold">{copy.title}</h2>
         {copy.subtitle && <p className="mt-1 text-sm text-black/60">{copy.subtitle}</p>}
 
-        {interaction.alerts.map((alert, i) => (
+        {/* En logout-confirmation el subtitle en español ya explica todo — la alerta cruda
+            del servidor ('{numUnsyncedChanges} unsynced changes...') solo estorba. */}
+        {interaction.type !== 'logout-confirmation' &&
+          interaction.alerts.map((alert, i) => (
           <p
             key={i}
             className={`mt-3 rounded-xl p-3 text-sm ${

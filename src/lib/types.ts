@@ -196,6 +196,34 @@ export interface FutureExpense {
   createdAt: number
 }
 
+/**
+ * Una tarjeta de crédito cuya deuda estás gestionando. La deuda actual baja con
+ * cada abono registrado; en tarjetas que sigues usando también puedes editarla
+ * a mano (porque sigue subiendo con tus compras).
+ */
+export interface CreditCard {
+  id: string
+  name: string
+  icon: string
+  /** Deuda actual total de la tarjeta. */
+  currentDebt: number
+  /** true = ya solo la estás pagando, no la usas — la deuda solo baja con abonos. */
+  isFixedDebt: boolean
+  /** Día del mes (1-31) que es tu fecha límite de pago. */
+  paymentDueDay: number
+  /** Pago mínimo del periodo para no generar intereses. */
+  minimumPayment: number
+  createdAt: number
+}
+
+/** Un abono registrado a una tarjeta — se descuenta de la deuda al momento de registrarlo. */
+export interface CreditCardPayment {
+  id: string
+  cardId: string
+  amount: number
+  date: number
+}
+
 /** Un proyecto con presupuesto propio (ej. "Pintar la casa"), independiente del gasto mensual normal. */
 export interface Project {
   id: string

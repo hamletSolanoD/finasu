@@ -1,4 +1,26 @@
+import { allLimitsSetForMonth, getIncomeForMonth } from './categoryLimits'
+import type { CategoryLimit, ExpenseCategory, MonthlyIncome } from './types'
+
 const NOTIFY_KEY = 'finasu:lastLimitsNotifiedDate'
+
+/**
+ * true si el mes ya quedó completo: ingreso declarado (aunque sea vacío) y
+ * límite decidido (con monto o "sin límite") para CADA categoría. Con el mes
+ * completo no hay nada que recordar — ni aviso en pantalla ni notificación
+ * local. Es la misma lógica que monthFullySet de MonthLimitsSection.
+ *
+ * OJO: una categoría creada después de establecer los límites (p. ej. la de
+ * IVA) vuelve a dejar el mes incompleto — eso es a propósito: hay una
+ * categoría nueva sin límite decidido.
+ */
+export function isMonthComplete(
+  categories: ExpenseCategory[],
+  limits: CategoryLimit[],
+  incomes: MonthlyIncome[],
+  monthKey: string,
+): boolean {
+  return getIncomeForMonth(monthKey, incomes) !== null && allLimitsSetForMonth(categories, limits, monthKey)
+}
 
 function todayKey(): string {
   const now = new Date()

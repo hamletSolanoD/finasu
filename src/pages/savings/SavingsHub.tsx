@@ -35,7 +35,7 @@ function SavingsHub() {
         </button>
       </div>
 
-      {tab === 'ahorro' ? <SavingsGoalsPanel /> : <FutureExpensesPanel />}
+      <div className="mt-6">{tab === 'ahorro' ? <SavingsGoalsPanel /> : <FutureExpensesPanel />}</div>
     </div>
   )
 }
