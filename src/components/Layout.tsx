@@ -1,7 +1,8 @@
 import { useLiveQuery, useObservable } from 'dexie-react-hooks'
 import { useEffect, useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { db, updateSettings } from '../lib/db'
+import { recordVisit } from '../lib/navigationHistory'
 import { AuthModal } from './AuthModal'
 import { NotificationsBell } from './NotificationsBell'
 import { OnboardingTour } from './OnboardingTour'
@@ -26,6 +27,7 @@ const hiddenInDesktopNav = ['/resumen', '/gastos/categorias']
 export function Layout() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [tourOpen, setTourOpen] = useState(false)
+  const location = useLocation()
   const settings = useLiveQuery(() => db.settings.get('default'), [])
   const currentUser = useObservable(db.cloud.currentUser)
   const isLoggedIn = Boolean(currentUser?.isLoggedIn)
@@ -48,6 +50,52 @@ export function Layout() {
     }
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
+  }, [])
+
+  // Cada sección arranca desde arriba (no donde quedó el scroll de la anterior),
+  // y se registra la visita para que BackLink sepa desde dónde llegaste.
+  useEffect(() => {
+    recordVisit(location.pathname)
+    window.scrollTo(0, 0)
+  }, [location.pathname])
+
+  // El menú lateral también se abre deslizando desde el borde derecho de la
+  // pantalla, a cualquier altura — no solo con el botón ☰.
+  useEffect(() => {
+    let startX = 0
+    let startY = 0
+    let tracking = false
+
+    function handleTouchStart(e: TouchEvent) {
+      const touch = e.touches[0]
+      if (touch.clientX > window.innerWidth - 24) {
+        tracking = true
+        startX = touch.clientX
+        startY = touch.clientY
+      }
+    }
+    function handleTouchMove(e: TouchEvent) {
+      if (!tracking) return
+      const touch = e.touches[0]
+      const dx = touch.clientX - startX
+      const dy = touch.clientY - startY
+      if (dx < -40 && Math.abs(dx) > Math.abs(dy)) {
+        setMenuOpen(true)
+        tracking = false
+      }
+    }
+    function handleTouchEnd() {
+      tracking = false
+    }
+
+    document.addEventListener('touchstart', handleTouchStart, { passive: true })
+    document.addEventListener('touchmove', handleTouchMove, { passive: true })
+    document.addEventListener('touchend', handleTouchEnd, { passive: true })
+    return () => {
+      document.removeEventListener('touchstart', handleTouchStart)
+      document.removeEventListener('touchmove', handleTouchMove)
+      document.removeEventListener('touchend', handleTouchEnd)
+    }
   }, [])
 
   // Instalaciones nuevas (hasSeenOnboarding: false) ven el tour una sola vez, automáticamente.

@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { BackLink } from '../../components/BackLink'
 import { CategoryDropdown } from '../../components/CategoryDropdown'
 import { PAGE_SIZE, Pagination } from '../../components/Pagination'
 import { findExistingCategoryId } from '../../lib/categories'
@@ -90,9 +91,7 @@ function UncategorizedItems() {
 
   return (
     <div className="mx-auto max-w-lg">
-      <Link to="/gastos" className="text-sm text-black/50 hover:text-black/70">
-        ← Gastos
-      </Link>
+      <BackLink to="/gastos">← Gastos</BackLink>
 
       <p className="mt-4 font-display text-sm font-semibold uppercase tracking-[0.2em] text-black/40">🧾 Gastos</p>
       <h1 className="mt-2 font-display text-3xl font-semibold">🏷️ Productos sin categorizar</h1>

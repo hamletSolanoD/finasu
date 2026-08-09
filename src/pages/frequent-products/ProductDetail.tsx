@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
+import { BackLink } from '../../components/BackLink'
 import { CategoryDropdown } from '../../components/CategoryDropdown'
 import { Dropdown } from '../../components/Dropdown'
 import { ImageUploader } from '../../components/ImageUploader'
@@ -11,7 +12,7 @@ import { db } from '../../lib/db'
 import { MAX_FAVORITES, toggleProductFavorite } from '../../lib/products'
 import { findExistingStoreId } from '../../lib/stores'
 import type { Unit } from '../../lib/types'
-import { UNITS_BY_KIND, displayUnitPrice, formatCurrency, formatUnitPrice } from '../../lib/units'
+import { PIECE_CONTENT_UNITS, UNITS_BY_KIND, displayUnitPrice, formatCurrency, formatUnitPrice } from '../../lib/units'
 
 function ProductDetail() {
   const { id } = useParams<{ id: string }>()
@@ -34,6 +35,9 @@ function ProductDetail() {
   const [amount, setAmount] = useState<number | ''>('')
   const [unit, setUnit] = useState<Unit>('g')
   const [isOnline, setIsOnline] = useState(false)
+  // Solo para packs por pieza (unit 'ud'): cuánto contiene cada pieza (ej. 4 jabones de 90 g c/u).
+  const [pieceAmount, setPieceAmount] = useState<number | ''>('')
+  const [pieceUnit, setPieceUnit] = useState<Exclude<Unit, 'ud'>>('g')
 
   const [editing, setEditing] = useState(false)
   const [editName, setEditName] = useState('')
@@ -45,8 +49,13 @@ function ProductDetail() {
 
   const unitOptions = UNITS_BY_KIND[product.unitKind]
   const selectedUnit = unitOptions.some((u) => u.value === unit) ? unit : unitOptions[0].value
+  // Con amountPerPiece/pieceUnit, un pack de 4×90g compite por gramo real
+  // contra un jabón suelto de 200g — ver el ejemplo en displayUnitPrice.
   const ranked = (entries ?? [])
-    .map((e) => ({ entry: e, unitPrice: displayUnitPrice(e.price, e.amount, e.unit) }))
+    .map((e) => ({
+      entry: e,
+      unitPrice: displayUnitPrice(e.price, e.amount, e.unit, e.amountPerPiece, e.pieceUnit),
+    }))
     .sort((a, b) => a.unitPrice.value - b.unitPrice.value)
 
   function startEditing() {
@@ -94,6 +103,8 @@ function ProductDetail() {
     const selectedStore = (stores ?? []).find((s) => s.id === storeId)
     if (!selectedStore) return
 
+    // Contenido por pieza: solo aplica a entradas en piezas y si se llenó el dato.
+    const hasPieceContent = selectedUnit === 'ud' && pieceAmount !== '' && pieceAmount > 0
     await db.priceEntries.add({
       id: crypto.randomUUID(),
       productId: product!.id,
@@ -103,11 +114,14 @@ function ProductDetail() {
       unit: selectedUnit,
       isOnline,
       date: Date.now(),
+      ...(hasPieceContent ? { amountPerPiece: Number(pieceAmount), pieceUnit } : {}),
     })
     setStoreId('')
     setPrice('')
     setAmount('')
     setIsOnline(false)
+    setPieceAmount('')
+    setPieceUnit('g')
   }
 
   async function handleDeleteEntry(entryId: string) {
@@ -123,9 +137,7 @@ function ProductDetail() {
 
   return (
     <div className="mx-auto max-w-lg">
-      <Link to="/productos-frecuentes" className="text-sm text-black/50 hover:text-black/70">
-        ← Productos frecuentes
-      </Link>
+      <BackLink to="/productos-frecuentes">← Productos frecuentes</BackLink>
 
       {editing ? (
         <form onSubmit={handleSaveEdit} className="mt-4 flex flex-col gap-4 rounded-2xl border border-black/10 bg-white/50 p-4">
@@ -241,8 +253,10 @@ function ProductDetail() {
                       )}
                     </p>
                     <p className="text-xs text-black/50">
-                      {formatCurrency(entry.price)} · {entry.amount}
-                      {entry.unit}
+                      {formatCurrency(entry.price)} ·{' '}
+                      {entry.amountPerPiece && entry.pieceUnit
+                        ? `${entry.amount} pzas × ${entry.amountPerPiece} ${entry.pieceUnit}`
+                        : `${entry.amount}${entry.unit}`}
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
@@ -314,6 +328,26 @@ function ProductDetail() {
               <Dropdown value={selectedUnit} options={unitOptions} onChange={(v) => setUnit(v)} />
             </label>
           </div>
+          {selectedUnit === 'ud' && (
+            <div>
+              <p className="text-sm text-black/60">¿Cuánto contiene cada pieza? (opcional)</p>
+              <p className="text-xs text-black/40">
+                Ej. pack de 4 jabones → cantidad 4 piezas, y cada jabón pesa 90 g.
+              </p>
+              <div className="mt-1 grid grid-cols-2 gap-3">
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={pieceAmount}
+                  onChange={(e) => setPieceAmount(e.target.value === '' ? '' : Number(e.target.value))}
+                  placeholder="Ej. 90"
+                  className="rounded-xl border border-black/15 bg-white/70 px-3 py-2 text-black/80"
+                />
+                <Dropdown value={pieceUnit} options={PIECE_CONTENT_UNITS} onChange={setPieceUnit} />
+              </div>
+            </div>
+          )}
           <label className="flex items-center gap-2 text-sm text-black/60">
             <input
               type="checkbox"

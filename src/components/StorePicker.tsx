@@ -167,11 +167,12 @@ export function StorePicker({
               </div>
             ) : (
               <>
+                {/* Sin autoFocus a propósito: enfocar el buscador levanta el teclado del
+                    celular y estorba cuando solo quieres tocar una tienda ya registrada. */}
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Buscar tienda..."
-                  autoFocus
                   className="mt-4 rounded-xl border border-black/15 bg-white/70 px-3 py-2 text-black/80"
                 />
 

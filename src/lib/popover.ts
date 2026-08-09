@@ -47,6 +47,11 @@ export function useFloatingPosition(
       return
     }
 
+    // Si el panel no cabe hacia abajo, desplaza la página (una sola vez por
+    // apertura) lo justo para que quepa — el scroll listener de abajo
+    // recalcula la posición durante ese desplazamiento.
+    let didAutoScroll = false
+
     function reposition() {
       const el = triggerRef.current
       if (!el) return
@@ -62,10 +67,11 @@ export function useFloatingPosition(
       const offsetLeft = vv?.offsetLeft ?? 0
       const offsetTop = vv?.offsetTop ?? 0
 
-      let top = rect.bottom + margin - offsetTop
-      if (top + panelHeight > viewportHeight && rect.top - margin - panelHeight - offsetTop > 0) {
-        top = rect.top - margin - panelHeight - offsetTop
-      }
+      // Siempre hacia ABAJO del trigger — abrir hacia arriba desorienta (el
+      // usuario lo reportó como "aparecen muy arriba de donde los clickeo").
+      // Si no cabe, en vez de voltear el panel se desplaza la página (ver
+      // useEffect de auto-scroll más abajo).
+      const top = rect.bottom + margin - offsetTop
 
       const width = panelWidth ?? rect.width
       let left = rect.left - offsetLeft
@@ -74,6 +80,12 @@ export function useFloatingPosition(
       }
 
       setPos({ top, left, triggerWidth: rect.width })
+
+      const overflow = top + panelHeight - viewportHeight + 8
+      if (overflow > 0 && !didAutoScroll) {
+        didAutoScroll = true
+        window.scrollBy({ top: overflow, behavior: 'smooth' })
+      }
     }
 
     // Solo se calcula al abrir — escuchar visualViewport en vivo hacía que el

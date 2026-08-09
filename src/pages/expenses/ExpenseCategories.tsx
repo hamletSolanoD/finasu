@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import { BackLink } from '../../components/BackLink'
 import { HomeStatusPanel } from '../../components/HomeStatusPanel'
 import { MonthLimitsSection, monthFullySet } from '../../components/MonthLimitsSection'
 import { computeMonthlySpendByCategory } from '../../lib/budget'
@@ -67,9 +68,7 @@ function ExpenseCategories() {
 
   return (
     <div className="mx-auto max-w-lg">
-      <Link to="/gastos" className="text-sm text-black/50 hover:text-black/70">
-        ← Gastos
-      </Link>
+      <BackLink to="/gastos">← Gastos</BackLink>
 
       <p className="mt-4 font-display text-sm font-semibold uppercase tracking-[0.2em] text-black/40">🧾 Gastos</p>
       <h1 className="mt-2 font-display text-3xl font-semibold">🏷️ Categorías y límites</h1>

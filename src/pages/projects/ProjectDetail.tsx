@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useState, type FormEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
+import { BackLink } from '../../components/BackLink'
 import { StorePicker } from '../../components/StorePicker'
 import { SwipeableRow } from '../../components/SwipeableRow'
 import { computeBudgetState } from '../../lib/budget'
@@ -253,9 +254,7 @@ function ProjectDetail() {
 
   return (
     <div className="mx-auto max-w-lg">
-      <Link to="/proyectos" className="text-sm text-black/50 hover:text-black/70">
-        ← Proyectos
-      </Link>
+      <BackLink to="/proyectos">← Proyectos</BackLink>
 
       <div className="mt-4">
         <ProjectNameField projectId={project.id} name={project.name} />

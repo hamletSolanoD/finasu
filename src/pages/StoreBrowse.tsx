@@ -426,12 +426,16 @@ function StoreBrowse() {
                                   </div>
                                   <p className="font-medium">{product.name}</p>
                                 </div>
-                                <p className="text-sm font-semibold">
-                                  {formatUnitPrice(unitPrice.value, unitPrice.label)}
-                                  <span className="text-black/40">
-                                    {unitPrice.label} en {entry.store}
-                                  </span>
-                                </p>
+                                <div className="text-right">
+                                  <p className="text-sm font-semibold">
+                                    {formatCurrency(entry.price)}
+                                    <span className="text-black/40"> en {entry.store}</span>
+                                  </p>
+                                  <p className="text-xs text-black/40">
+                                    {formatUnitPrice(unitPrice.value, unitPrice.label)}
+                                    {unitPrice.label}
+                                  </p>
+                                </div>
                               </Link>
                             </li>
                           ))}

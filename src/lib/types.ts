@@ -29,6 +29,14 @@ export interface PriceEntry {
   /** true si esta tienda es una tienda en línea (no física). */
   isOnline: boolean
   date: number
+  /**
+   * Solo para packs por pieza (unit 'ud'): el contenido de CADA pieza — ej. un
+   * pack de 4 jabones de 90 g → amount: 4, unit: 'ud', amountPerPiece: 90,
+   * pieceUnit: 'g'. Permite comparar packs contra presentaciones sueltas por
+   * gramo/ml real y no solo por pieza.
+   */
+  amountPerPiece?: number
+  pieceUnit?: Exclude<Unit, 'ud'>
 }
 
 export type ExpenseStatus =

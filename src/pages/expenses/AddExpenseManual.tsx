@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
+import { BackLink } from '../../components/BackLink'
 import { CategoryDropdown } from '../../components/CategoryDropdown'
 import { DatePicker } from '../../components/DatePicker'
 import { Dropdown } from '../../components/Dropdown'
@@ -111,9 +112,7 @@ function AddExpenseManual() {
 
   return (
     <div className="mx-auto max-w-lg">
-      <Link to="/gastos" className="text-sm text-black/50 hover:text-black/70">
-        ← Gastos
-      </Link>
+      <BackLink to="/gastos">← Gastos</BackLink>
 
       <p className="mt-4 font-display text-sm font-semibold uppercase tracking-[0.2em] text-black/40">
         🧾 Gastos

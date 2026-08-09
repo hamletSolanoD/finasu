@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useState, type FormEvent } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
+import { BackLink } from '../../components/BackLink'
 import { CategoryDropdown } from '../../components/CategoryDropdown'
 import { DatePicker } from '../../components/DatePicker'
 import { Dropdown } from '../../components/Dropdown'
@@ -176,9 +177,7 @@ function ExpenseDetail() {
 
   return (
     <div className="mx-auto max-w-lg">
-      <Link to="/gastos" className="text-sm text-black/50 hover:text-black/70">
-        ← Gastos
-      </Link>
+      <BackLink to="/gastos">← Gastos</BackLink>
 
       <div className="mt-4 flex items-start gap-4">
         {expense.image && (

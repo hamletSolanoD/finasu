@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
+import { BackLink } from '../../components/BackLink'
 import { MonthLimitsSection } from '../../components/MonthLimitsSection'
 import { computeMonthlySpendByCategory } from '../../lib/budget'
 import { db } from '../../lib/db'
@@ -35,9 +36,7 @@ function MonthDetail() {
 
   return (
     <div className="mx-auto max-w-lg">
-      <Link to="/gastos/categorias" className="text-sm text-black/50 hover:text-black/70">
-        ← Categorías y límites
-      </Link>
+      <BackLink to="/gastos/categorias">← Categorías y límites</BackLink>
 
       <p className="mt-4 font-display text-sm font-semibold uppercase tracking-[0.2em] text-black/40">🧾 Gastos</p>
       <h1 className="mt-2 font-display text-3xl font-semibold">📅 {formatMonthLabel(monthKey)}</h1>
