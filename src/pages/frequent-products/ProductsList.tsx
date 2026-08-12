@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useRef, useState, type FormEvent, type MouseEvent, type TouchEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { BackLink } from '../../components/BackLink'
+import { useConfirm } from '../../components/ConfirmModal'
 import { PlusIcon, StarIcon } from '../../components/icons'
 import { findExistingCategoryId, ICON_PALETTE } from '../../lib/categories'
 import { db } from '../../lib/db'
@@ -32,11 +33,18 @@ function ProductListCard({
     }))
     .sort((a, b) => a.unitPrice.value - b.unitPrice.value || b.entry.date - a.entry.date)[0]
 
+  const confirm = useConfirm()
+
   async function toggleFavorite(e: MouseEvent) {
     e.preventDefault()
     e.stopPropagation()
     const ok = await toggleProductFavorite(product.id, product.favorite)
-    if (!ok) alert(`Ya tienes ${MAX_FAVORITES} productos favoritos. Quita alguno para agregar otro.`)
+    if (!ok) {
+      await confirm({
+        title: `Ya tienes ${MAX_FAVORITES} productos favoritos. Quita alguno para agregar otro.`,
+        alertOnly: true,
+      })
+    }
   }
 
   return (

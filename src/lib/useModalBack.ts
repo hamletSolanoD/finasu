@@ -28,7 +28,13 @@ export function useModalBack(open: boolean, onClose: () => void) {
   useEffect(() => {
     if (!open) return
     closedByPopstateRef.current = false
-    window.history.pushState({ __finasuModal: true }, '')
+    // Hay que conservar el state actual (sobre todo su `idx`, que react-router
+    // usa para calcular la siguiente posición en push/replace) — si lo
+    // reemplazamos por un objeto nuevo sin `idx`, cualquier navegación de
+    // react-router que ocurra mientras el modal está abierto (ej. un Link
+    // dentro del modal) calcula `idx: NaN` y corrompe el historial del router
+    // para el resto de la sesión.
+    window.history.pushState({ ...window.history.state, __finasuModal: true }, '')
 
     function handlePopstate() {
       closedByPopstateRef.current = true

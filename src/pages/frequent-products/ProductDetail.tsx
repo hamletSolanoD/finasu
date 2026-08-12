@@ -96,7 +96,12 @@ function ProductDetail() {
 
   async function toggleFavorite() {
     const ok = await toggleProductFavorite(product!.id, product!.favorite)
-    if (!ok) alert(`Ya tienes ${MAX_FAVORITES} productos favoritos. Quita alguno para agregar otro.`)
+    if (!ok) {
+      await confirm({
+        title: `Ya tienes ${MAX_FAVORITES} productos favoritos. Quita alguno para agregar otro.`,
+        alertOnly: true,
+      })
+    }
   }
 
   async function handleAddEntry(e: FormEvent) {

@@ -96,16 +96,15 @@ export function NotificationsBell() {
                     key={reminder.key}
                     to={reminder.to}
                     onClick={(e) => {
-                      // No dejamos que el Link navegue en el mismo tick: cerramos el
-                      // modal primero (para que useModalBack limpie su entrada extra
-                      // del historial con su propio history.back()) y solo después
-                      // navegamos nosotros a mano. Si navegáramos en el mismo click,
-                      // el push de la navegación pisaría la entrada del modal antes
-                      // de que se limpiara sola, dejando el historial del navegador
-                      // inconsistente (y al usuario viendo una pantalla en blanco).
+                      // Cerramos el modal a mano y navegamos nosotros mismos (en vez
+                      // de dejar que el Link navegue solo) porque si no, el modal se
+                      // queda abierto tapando la pantalla nueva. Cerrar primero
+                      // también importa: useModalBack detecta que ya navegamos (el
+                      // state ya no trae __finasuModal) y no hace un history.back()
+                      // de más por su cuenta.
                       e.preventDefault()
                       setOpen(false)
-                      setTimeout(() => navigate(reminder.to), 0)
+                      navigate(reminder.to)
                     }}
                     className="rounded-2xl border border-black/10 bg-white/60 p-4 transition hover:-translate-y-0.5 hover:shadow-sm"
                   >

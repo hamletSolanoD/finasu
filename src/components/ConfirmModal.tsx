@@ -9,6 +9,8 @@ interface ConfirmOptions {
   cancelLabel?: string
   /** true = botón de confirmar en rojo (acción destructiva). Default true. */
   danger?: boolean
+  /** true = solo un botón "Entendido", sin Cancelar — reemplazo de window.alert() para avisos que no piden decisión. */
+  alertOnly?: boolean
 }
 
 type Confirm = (options: ConfirmOptions) => Promise<boolean>
@@ -16,14 +18,18 @@ type Confirm = (options: ConfirmOptions) => Promise<boolean>
 const ConfirmContext = createContext<Confirm | null>(null)
 
 /**
- * Reemplazo estándar de window.confirm() con el look de la app — el nativo
- * del navegador (el que se ve "como el de Netlify") no se puede vestir ni es
- * consistente entre dispositivos. Envuelve la app una sola vez en App.tsx;
- * en cualquier componente, usa el hook useConfirm() para pedir confirmación:
+ * Reemplazo estándar de window.confirm() y window.alert() con el look de la
+ * app — el nativo del navegador (el que se ve "como el de Netlify") no se
+ * puede vestir ni es consistente entre dispositivos. Envuelve la app una sola
+ * vez en App.tsx; en cualquier componente, usa el hook useConfirm():
  *
  *   const confirm = useConfirm()
  *   const ok = await confirm({ title: '¿Eliminar esta tienda?', body: '...' })
  *   if (!ok) return
+ *
+ * Para un aviso simple (sin decisión, reemplazo de alert()), agrega alertOnly:
+ *
+ *   await confirm({ title: 'Ya existe una tienda con ese nombre', alertOnly: true })
  */
 export function ConfirmProvider({ children }: { children: ReactNode }) {
   const [options, setOptions] = useState<ConfirmOptions | null>(null)
@@ -64,18 +70,20 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
                 autoFocus
                 onClick={() => settle(true)}
                 className={`rounded-full px-5 py-2 font-display font-semibold transition hover:brightness-95 ${
-                  options.danger === false ? 'bg-sage text-black/80' : 'bg-red-500 text-white'
+                  options.alertOnly || options.danger === false ? 'bg-sage text-black/80' : 'bg-red-500 text-white'
                 }`}
               >
-                {options.confirmLabel ?? 'Eliminar'}
+                {options.confirmLabel ?? (options.alertOnly ? 'Entendido' : 'Eliminar')}
               </button>
-              <button
-                type="button"
-                onClick={() => settle(false)}
-                className="rounded-full px-5 py-2 text-sm font-medium text-black/50 hover:bg-black/5"
-              >
-                {options.cancelLabel ?? 'Cancelar'}
-              </button>
+              {!options.alertOnly && (
+                <button
+                  type="button"
+                  onClick={() => settle(false)}
+                  className="rounded-full px-5 py-2 text-sm font-medium text-black/50 hover:bg-black/5"
+                >
+                  {options.cancelLabel ?? 'Cancelar'}
+                </button>
+              )}
             </div>
           </div>
         </div>

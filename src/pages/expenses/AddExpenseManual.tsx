@@ -77,11 +77,13 @@ function AddExpenseManual() {
     const { complete: validItems, incomplete } = splitDraftItems(items)
 
     if (validItems.length === 0) {
-      alert(
-        incomplete.length > 0
-          ? 'Los productos que agregaste están incompletos — les falta nombre o monto. Complétalos para poder guardar.'
-          : 'Agrega al menos un producto con nombre y monto para guardar el gasto.',
-      )
+      await confirm({
+        title:
+          incomplete.length > 0
+            ? 'Los productos que agregaste están incompletos — les falta nombre o monto. Complétalos para poder guardar.'
+            : 'Agrega al menos un producto con nombre y monto para guardar el gasto.',
+        alertOnly: true,
+      })
       return
     }
 

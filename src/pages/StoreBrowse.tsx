@@ -46,7 +46,7 @@ function StoreFormModal({
 
     const duplicateId = findExistingStoreId(existingStores, trimmed)
     if (duplicateId) {
-      alert(`Ya existe una tienda llamada "${trimmed}".`)
+      await confirm({ title: `Ya existe una tienda llamada "${trimmed}".`, alertOnly: true })
       return
     }
     await db.stores.add({ id: crypto.randomUUID(), name: trimmed, icon, image, createdAt: Date.now() })
