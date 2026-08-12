@@ -1,14 +1,9 @@
 import { useState } from 'react'
 import { DatePicker } from '../../components/DatePicker'
+import { localTodayIso } from '../../lib/date'
 import { formatCurrency } from '../../lib/units'
 import type { CreditCard } from '../../lib/types'
 import { registerPayments } from './cardActions'
-
-/** Hoy en ISO local (no UTC — en la noche el día UTC ya es "mañana" en México). */
-function localTodayIso(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
 
 /** Mini-formulario para registrar un abono a una tarjeta: monto + fecha (default hoy). */
 export function AddPaymentModal({ card, onClose }: { card: CreditCard; onClose: () => void }) {

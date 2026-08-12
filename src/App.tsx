@@ -1,4 +1,5 @@
 import { Route, Routes } from 'react-router-dom'
+import { ConfirmProvider } from './components/ConfirmModal'
 import { Layout } from './components/Layout'
 import Home from './pages/Home'
 import MonthlySummary from './pages/MonthlySummary'
@@ -22,29 +23,31 @@ import ProjectsList from './pages/projects/ProjectsList'
 
 function App() {
   return (
-    <Routes>
-      <Route element={<Layout />}>
-        <Route path="/" element={<Home />} />
-        <Route path="/productos-frecuentes" element={<ProductsList />} />
-        <Route path="/productos-frecuentes/nuevo" element={<AddProduct />} />
-        <Route path="/productos-frecuentes/:id" element={<ProductDetail />} />
-        <Route path="/tiendas" element={<StoreBrowse />} />
-        <Route path="/gastos" element={<ExpensesList />} />
-        <Route path="/gastos/escanear" element={<ScanTicket />} />
-        <Route path="/gastos/categorias" element={<ExpenseCategories />} />
-        <Route path="/gastos/categorias/otros-meses" element={<OtherMonths />} />
-        <Route path="/gastos/categorias/mes/:monthKey" element={<MonthDetail />} />
-        <Route path="/gastos/sin-categorizar" element={<UncategorizedItems />} />
-        <Route path="/gastos/manual" element={<AddExpenseManual />} />
-        <Route path="/gastos/:id" element={<ExpenseDetail />} />
-        <Route path="/ahorro" element={<SavingsHub />} />
-        <Route path="/resumen" element={<MonthlySummary />} />
-        <Route path="/proyectos" element={<ProjectsList />} />
-        <Route path="/proyectos/nuevo" element={<AddProject />} />
-        <Route path="/proyectos/:id" element={<ProjectDetail />} />
-        <Route path="/tarjetas" element={<CreditCardsHub />} />
-      </Route>
-    </Routes>
+    <ConfirmProvider>
+      <Routes>
+        <Route element={<Layout />}>
+          <Route path="/" element={<Home />} />
+          <Route path="/productos-frecuentes" element={<ProductsList />} />
+          <Route path="/productos-frecuentes/nuevo" element={<AddProduct />} />
+          <Route path="/productos-frecuentes/:id" element={<ProductDetail />} />
+          <Route path="/tiendas" element={<StoreBrowse />} />
+          <Route path="/gastos" element={<ExpensesList />} />
+          <Route path="/gastos/escanear" element={<ScanTicket />} />
+          <Route path="/gastos/categorias" element={<ExpenseCategories />} />
+          <Route path="/gastos/categorias/otros-meses" element={<OtherMonths />} />
+          <Route path="/gastos/categorias/mes/:monthKey" element={<MonthDetail />} />
+          <Route path="/gastos/sin-categorizar" element={<UncategorizedItems />} />
+          <Route path="/gastos/manual" element={<AddExpenseManual />} />
+          <Route path="/gastos/:id" element={<ExpenseDetail />} />
+          <Route path="/ahorro" element={<SavingsHub />} />
+          <Route path="/resumen" element={<MonthlySummary />} />
+          <Route path="/proyectos" element={<ProjectsList />} />
+          <Route path="/proyectos/nuevo" element={<AddProject />} />
+          <Route path="/proyectos/:id" element={<ProjectDetail />} />
+          <Route path="/tarjetas" element={<CreditCardsHub />} />
+        </Route>
+      </Routes>
+    </ConfirmProvider>
   )
 }
 

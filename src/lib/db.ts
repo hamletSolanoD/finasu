@@ -581,6 +581,33 @@ class FinasuDB extends Dexie {
       creditCardPayments: 'id, cardId, date',
     })
 
+    // v21: las tarjetas de deuda fija ya pagada (currentDebt en 0) se pueden
+    // archivar (CreditCard.archivedAt) para moverlas a su propia pestaña y
+    // dejar de estorbar entre las activas, conservando el registro de que ya
+    // se pagaron. Campo opcional, sin índice — no se filtra por él en query,
+    // solo en memoria — así que el esquema queda idéntico al de v20.
+    this.version(21).stores({
+      products: 'id, name, categoryId',
+      priceEntries: 'id, productId, store',
+      categories: 'id, name',
+      expenses: 'id, status, capturedAt',
+      expenseItems: 'id, expenseId, categoryId',
+      expenseCategories: 'id, name',
+      categoryLimits: 'id, categoryId, monthKey',
+      savingsGoals: 'id, name',
+      savingsDeposits: 'id, goalId, periodIndex',
+      futureExpenses: 'id, fechaObjetivo',
+      settings: 'id',
+      monthlyIncomes: 'id, monthKey',
+      savingsGoalDeletions: 'id, deletedAt',
+      projects: 'id, name',
+      projectItems: 'id, projectId, purchased',
+      projectPriceEntries: 'id, projectItemId, store',
+      stores: 'id, name',
+      creditCards: 'id, name',
+      creditCardPayments: 'id, cardId, date',
+    })
+
     this.cloud.configure({
       databaseUrl: DEXIE_CLOUD_URL,
       requireAuth: true,

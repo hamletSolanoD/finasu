@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { BackLink } from '../../components/BackLink'
 import { CategoryDropdown } from '../../components/CategoryDropdown'
+import { useConfirm } from '../../components/ConfirmModal'
 import { DatePicker } from '../../components/DatePicker'
 import { Dropdown } from '../../components/Dropdown'
 import { StorePicker } from '../../components/StorePicker'
@@ -14,8 +15,10 @@ import { formatFechaLarga } from '../../lib/date'
 import { ICON_PALETTE } from '../../lib/expenseCategories'
 import { computeExpenseStatus } from '../../lib/expenseStatus'
 import { ensureIvaCategory, looksLikeIva } from '../../lib/ivaCategory'
+import { smartBack } from '../../lib/navigationHistory'
 import { findExistingStoreId, matchStoreByMerchant } from '../../lib/stores'
 import { parseTicketLines } from '../../lib/ticketParser'
+import { formatCurrency } from '../../lib/units'
 import { useModalBack } from '../../lib/useModalBack'
 
 interface DraftItem {
@@ -28,6 +31,7 @@ interface DraftItem {
 function ExpenseDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const confirm = useConfirm()
 
   const expense = useLiveQuery(() => (id ? db.expenses.get(id) : undefined), [id])
   const dbItems = useLiveQuery(
@@ -94,9 +98,10 @@ function ExpenseDetail() {
 
   async function handleReprocessOcr() {
     if (!expense) return
-    const confirmed = confirm(
-      '¿Reprocesar este ticket? Esto reemplazará los productos actuales por un nuevo análisis del texto del OCR — perderás las categorías que ya hayas puesto en este borrador. Los cambios no se guardan hasta que presiones \'Guardar cambios\'.',
-    )
+    const confirmed = await confirm({
+      title: '¿Reprocesar este ticket?',
+      body: "Esto reemplazará los productos actuales por un nuevo análisis del texto del OCR — perderás las categorías que ya hayas puesto en este borrador. Los cambios no se guardan hasta que presiones 'Guardar cambios'.",
+    })
     if (!confirmed) return
     const parsed = parseTicketLines(expense.ocrText || '')
     let ivaCategoryId: string | null = null
@@ -114,9 +119,10 @@ function ExpenseDetail() {
 
   async function handleDeletePhoto() {
     if (!expense) return
-    const confirmed = confirm(
-      '¿Eliminar la foto de este ticket? Conservas todo el texto y los productos ya categorizados — solo dejas de poder ver la imagen original para comparar. Esto no se puede deshacer.',
-    )
+    const confirmed = await confirm({
+      title: '¿Eliminar la foto de este ticket?',
+      body: 'Conservas todo el texto y los productos ya categorizados — solo dejas de poder ver la imagen original para comparar. Esto no se puede deshacer.',
+    })
     if (!confirmed) return
     await db.expenses.update(expense.id, { image: undefined })
     setViewerOpen(false)
@@ -134,6 +140,9 @@ function ExpenseDetail() {
     setItems((prev) => prev.filter((it) => it.id !== itemId))
   }
 
+  const itemsConMonto = items.filter((it) => it.monto.trim() !== '' && Number.isFinite(Number(it.monto)))
+  const totalItems = itemsConMonto.reduce((sum, it) => sum + Number(it.monto), 0)
+
   async function handleSave(e: FormEvent) {
     e.preventDefault()
     const validItems = items.filter((it) => it.nombre.trim() && Number(it.monto) >= 0)
@@ -143,7 +152,7 @@ function ExpenseDetail() {
     const uncategorized = validItems.filter((it) => it.categoryId === null)
     if (uncategorized.length > 0) {
       const names = uncategorized.map((it) => `- ${it.nombre.trim()}`).join('\n')
-      const proceed = confirm(`Aún no has categorizado:\n${names}\n\n¿Guardar de todos modos?`)
+      const proceed = await confirm({ title: 'Aún no has categorizado', body: `${names}\n\n¿Guardar de todos modos?` })
       if (!proceed) return
     }
 
@@ -172,7 +181,7 @@ function ExpenseDetail() {
       }
     })
 
-    navigate('/gastos')
+    smartBack(navigate, '/gastos')
   }
 
   return (
@@ -310,6 +319,13 @@ function ExpenseDetail() {
           >
             + Agregar producto
           </button>
+        </div>
+
+        <div>
+          <p className="font-display font-semibold">Total: {formatCurrency(totalItems)}</p>
+          <p className="text-xs text-black/40">
+            {itemsConMonto.length} producto{itemsConMonto.length === 1 ? '' : 's'}
+          </p>
         </div>
 
         <button

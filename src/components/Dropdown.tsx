@@ -73,7 +73,8 @@ export function Dropdown<T extends string>({
           <ul
             ref={panelRef}
             style={{ position: 'fixed', top: position.top, left: position.left, width: position.triggerWidth }}
-            className="z-50 max-h-56 overflow-auto rounded-xl border border-black/10 bg-white shadow-lg"
+            // z-[70]: por arriba de cualquier modal (z-[60]) — mismo motivo que DatePicker.
+            className="z-[70] max-h-56 overflow-auto rounded-xl border border-black/10 bg-white shadow-lg"
           >
             {options.map((o) => (
               <li key={o.value}>

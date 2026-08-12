@@ -1,3 +1,5 @@
+import type { NavigateFunction } from 'react-router-dom'
+
 /**
  * Registro propio de qué ruta se visitó en cada posición del historial del
  * navegador — indexado por el `idx` que react-router guarda en history.state.
@@ -19,4 +21,24 @@ export function recordVisit(pathname: string): void {
 export function previousPathname(): string | null {
   const idx = (window.history.state?.idx as number | undefined) ?? 0
   return idx > 0 ? (pathsByIdx[idx - 1] ?? null) : null
+}
+
+/**
+ * Para "regresar" después de completar una acción (ej. guardar un gasto y
+ * volver a /gastos): si llegaste a la pantalla actual DESDE `hub`, hace un
+ * history.back() de verdad (consume la entrada, historial no crece). Si no
+ * (entraste por otro camino — deep link, acceso directo), navega a `hub`
+ * reemplazando la entrada actual en vez de apilar una nueva.
+ *
+ * Sin esto, guardar varios gastos seguidos (escanear/agregar → guardar →
+ * escanear/agregar → guardar...) apila una entrada de historial por cada
+ * ronda, y el botón atrás del teléfono termina "regresando por todos los
+ * gastos que ya hiciste" en vez de a donde estabas antes de empezar.
+ */
+export function smartBack(navigate: NavigateFunction, hub: string): void {
+  if (previousPathname() === hub) {
+    navigate(-1)
+  } else {
+    navigate(hub, { replace: true })
+  }
 }

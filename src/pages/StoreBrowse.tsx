@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { STORE_ICON_PALETTE } from '../components/StorePicker'
+import { useConfirm } from '../components/ConfirmModal'
 import { db } from '../lib/db'
 import { fileToResizedDataUrl } from '../lib/image'
 import { bestPriceFor } from '../lib/projects'
@@ -21,6 +22,7 @@ function StoreFormModal({
   existingStores: Store[]
   onClose: () => void
 }) {
+  const confirm = useConfirm()
   const [name, setName] = useState(store?.name ?? '')
   const [icon, setIcon] = useState(store?.icon ?? STORE_ICON_PALETTE[0])
   const [image, setImage] = useState<string | undefined>(store?.image)
@@ -53,12 +55,11 @@ function StoreFormModal({
 
   async function handleDelete() {
     if (!store) return
-    if (
-      !confirm(
-        `¿Eliminar la tienda "${store.name}"? Esto no borra los precios ni tickets que ya tengan ese nombre, solo el registro de la tienda.`,
-      )
-    )
-      return
+    const ok = await confirm({
+      title: `¿Eliminar la tienda "${store.name}"?`,
+      body: 'Esto no borra los precios ni tickets que ya tengan ese nombre, solo el registro de la tienda.',
+    })
+    if (!ok) return
     await db.stores.delete(store.id)
     onClose()
   }

@@ -97,6 +97,12 @@ export function SwipeableRow({
       // Un enlace (ej. fila de ticket) no siempre suprime su click nativo tras un
       // arrastre — lo forzamos a mano para que arrastrar nunca también navegue.
       suppressClickRef.current = true
+    } else if (open) {
+      // La fila ya estaba abierta: un tap la regresa a su lugar en vez de disparar
+      // su acción normal (ej. el link de la fila) — como en iOS Mail, un toque
+      // cierra, hay que tocar otra vez (ya cerrada) para de verdad activarla.
+      setOpen(false)
+      suppressClickRef.current = true
     } else if (!startedOnInteractive) {
       // Un tap sobre un botón/input propio del contenido (cuadro del grid, "Registrar
       // ahorro", etc.) no debe también abrir el panel de editar/eliminar.

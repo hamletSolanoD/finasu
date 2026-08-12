@@ -31,6 +31,16 @@ export async function deleteCardWithPayments(card: CreditCard): Promise<void> {
   })
 }
 
+/** Archiva una tarjeta de deuda fija ya pagada — se mueve a la pestaña "Archivadas". */
+export async function archiveCard(id: string): Promise<void> {
+  await db.creditCards.update(id, { archivedAt: Date.now() })
+}
+
+/** Reactiva una tarjeta archivada — regresa a la vista principal de tarjetas activas. */
+export async function reactivateCard(id: string): Promise<void> {
+  await db.creditCards.update(id, { archivedAt: undefined })
+}
+
 /** Próxima fecha límite de la tarjeta, lista para mostrar: "15 de agosto" + "en 7 días"/"hoy"/"mañana". */
 export function dueInfo(card: CreditCard): { due: Date; days: number; dateLabel: string; daysLabel: string } {
   const due = nextDueDate(card.paymentDueDay)

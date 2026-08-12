@@ -57,7 +57,9 @@ export function computeReminders(
       body: advanceNotice
         ? 'Prepara cuánto quieres gastar en cada categoría antes de que arranque.'
         : 'Define cuánto quieres gastar en cada categoría antes de que se te pasen los tickets.',
-      to: '/gastos/categorias',
+      // El query param le avisa a ExpenseCategories que venimos de acá, para
+      // que resalte con una animación el bloque de límites (ver ExpenseCategories.tsx).
+      to: '/gastos/categorias?desde=notificacion',
     })
   }
 

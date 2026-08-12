@@ -122,7 +122,9 @@ export function DatePicker({
           <div
             ref={panelRef}
             style={{ position: 'fixed', top: position.top, left: position.left, width: CALENDAR_WIDTH }}
-            className="z-50 max-w-[90vw] rounded-xl border border-black/10 bg-white p-3 shadow-lg"
+            // z-[70]: por arriba de cualquier modal (z-[60]) — si no, el calendario
+            // abierto dentro de un modal (ej. abono de tarjeta) queda tapado e "no funciona".
+            className="z-[70] max-w-[90vw] rounded-xl border border-black/10 bg-white p-3 shadow-lg"
           >
             <div className="flex items-center justify-between">
               <button

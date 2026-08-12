@@ -1,22 +1,12 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link } from 'react-router-dom'
+import { useConfirm } from '../../components/ConfirmModal'
 import { SwipeableRow } from '../../components/SwipeableRow'
 import { computeBudgetState } from '../../lib/budget'
 import { db } from '../../lib/db'
 import { computeProjectEstimate } from '../../lib/projects'
 import type { Project, ProjectItem, ProjectPriceEntry } from '../../lib/types'
 import { formatCurrency } from '../../lib/units'
-
-async function handleDeleteProject(projectId: string, projectName: string) {
-  if (!confirm(`¿Eliminar el proyecto "${projectName}" y todos sus artículos?`)) return
-  await db.transaction('rw', db.projects, db.projectItems, db.projectPriceEntries, async () => {
-    const items = await db.projectItems.where('projectId').equals(projectId).toArray()
-    const itemIds = items.map((i) => i.id)
-    await db.projectPriceEntries.where('projectItemId').anyOf(itemIds).delete()
-    await db.projectItems.where('projectId').equals(projectId).delete()
-    await db.projects.delete(projectId)
-  })
-}
 
 function BudgetProgress({ estimate, budget }: { estimate: number; budget: number | null }) {
   if (budget === null) {
@@ -51,13 +41,26 @@ function ProjectCard({
   items: ProjectItem[]
   entries: ProjectPriceEntry[]
 }) {
+  const confirm = useConfirm()
   const projectItems = items.filter((i) => i.projectId === project.id)
   const itemIds = new Set(projectItems.map((i) => i.id))
   const projectEntries = entries.filter((e) => itemIds.has(e.projectItemId))
   const estimate = computeProjectEstimate(projectItems, projectEntries)
 
+  async function handleDeleteProject() {
+    const ok = await confirm({ title: `¿Eliminar el proyecto "${project.name}" y todos sus artículos?` })
+    if (!ok) return
+    await db.transaction('rw', db.projects, db.projectItems, db.projectPriceEntries, async () => {
+      const projectItemRows = await db.projectItems.where('projectId').equals(project.id).toArray()
+      const projectItemIds = projectItemRows.map((i) => i.id)
+      await db.projectPriceEntries.where('projectItemId').anyOf(projectItemIds).delete()
+      await db.projectItems.where('projectId').equals(project.id).delete()
+      await db.projects.delete(project.id)
+    })
+  }
+
   return (
-    <SwipeableRow onDelete={() => handleDeleteProject(project.id, project.name)}>
+    <SwipeableRow onDelete={handleDeleteProject}>
       <Link
         to={`/proyectos/${project.id}`}
         className="block rounded-2xl border border-black/10 bg-white/60 p-4 transition hover:bg-white/80"

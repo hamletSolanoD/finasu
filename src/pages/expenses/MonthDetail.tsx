@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useParams } from 'react-router-dom'
 import { BackLink } from '../../components/BackLink'
+import { useConfirm } from '../../components/ConfirmModal'
 import { MonthLimitsSection } from '../../components/MonthLimitsSection'
 import { computeMonthlySpendByCategory } from '../../lib/budget'
 import { db } from '../../lib/db'
@@ -14,6 +15,7 @@ function MonthDetail() {
   const incomes = useLiveQuery(() => db.monthlyIncomes.toArray(), [])
   const expenses = useLiveQuery(() => db.expenses.toArray(), [])
   const items = useLiveQuery(() => db.expenseItems.toArray(), [])
+  const confirm = useConfirm()
 
   if (!monthKey || !categories || !limits || !incomes || !expenses || !items) return null
 
@@ -22,12 +24,11 @@ function MonthDetail() {
   async function handleDeleteCategory(categoryId: string) {
     const category = categories?.find((c) => c.id === categoryId)
     if (!category) return
-    if (
-      !confirm(
-        `¿Eliminar la categoría "${category.name}"? También se borrará su historial de límites de meses anteriores. Esto no se puede deshacer.`,
-      )
-    )
-      return
+    const ok = await confirm({
+      title: `¿Eliminar la categoría "${category.name}"?`,
+      body: 'También se borrará su historial de límites de meses anteriores. Esto no se puede deshacer.',
+    })
+    if (!ok) return
     await db.transaction('rw', db.categoryLimits, db.expenseCategories, async () => {
       await db.categoryLimits.where('categoryId').equals(categoryId).delete()
       await db.expenseCategories.delete(categoryId)

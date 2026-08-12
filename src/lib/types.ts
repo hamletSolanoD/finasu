@@ -222,6 +222,13 @@ export interface CreditCard {
   /** Pago mínimo del periodo para no generar intereses. */
   minimumPayment: number
   createdAt: number
+  /**
+   * Cuándo se archivó (null/undefined = activa). Solo tiene sentido para deuda
+   * fija ya pagada (currentDebt en 0): se mueve a la pestaña "Archivadas" para
+   * guardar el registro de que ya se pagó, sin que estorbe entre las tarjetas
+   * activas. Se puede reactivar en cualquier momento.
+   */
+  archivedAt?: number
 }
 
 /** Un abono registrado a una tarjeta — se descuenta de la deuda al momento de registrarlo. */

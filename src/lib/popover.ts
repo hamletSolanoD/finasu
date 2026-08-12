@@ -69,9 +69,14 @@ export function useFloatingPosition(
 
       // Siempre hacia ABAJO del trigger — abrir hacia arriba desorienta (el
       // usuario lo reportó como "aparecen muy arriba de donde los clickeo").
-      // Si no cabe, en vez de voltear el panel se desplaza la página (ver
-      // useEffect de auto-scroll más abajo).
-      const top = rect.bottom + margin - offsetTop
+      // Si no cabe, primero se intenta desplazar la página (ver más abajo); si
+      // aun así no alcanza (ej. el trigger es el último elemento de una página
+      // corta, sin nada debajo que desplazar), se recorta el top para que el
+      // panel completo quede SIEMPRE visible — nunca tapando su última opción
+      // (el usuario reportó que "se esconde" el botón de abajo del todo).
+      let top = rect.bottom + margin - offsetTop
+      const maxTop = viewportHeight - panelHeight - 8
+      if (top > maxTop) top = Math.max(8, maxTop)
 
       const width = panelWidth ?? rect.width
       let left = rect.left - offsetLeft
@@ -81,7 +86,7 @@ export function useFloatingPosition(
 
       setPos({ top, left, triggerWidth: rect.width })
 
-      const overflow = top + panelHeight - viewportHeight + 8
+      const overflow = rect.bottom + margin - offsetTop + panelHeight - viewportHeight + 8
       if (overflow > 0 && !didAutoScroll) {
         didAutoScroll = true
         window.scrollBy({ top: overflow, behavior: 'smooth' })

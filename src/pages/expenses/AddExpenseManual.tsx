@@ -3,16 +3,20 @@ import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BackLink } from '../../components/BackLink'
 import { CategoryDropdown } from '../../components/CategoryDropdown'
+import { useConfirm } from '../../components/ConfirmModal'
 import { DatePicker } from '../../components/DatePicker'
 import { Dropdown } from '../../components/Dropdown'
 import { StorePicker } from '../../components/StorePicker'
 import { SwipeableRow } from '../../components/SwipeableRow'
 import { findExistingCategoryId } from '../../lib/categories'
 import { CURRENCY_OPTIONS, DEFAULT_CURRENCY } from '../../lib/currency'
+import { localTodayIso } from '../../lib/date'
 import { db } from '../../lib/db'
 import { ICON_PALETTE } from '../../lib/expenseCategories'
 import { computeExpenseStatus } from '../../lib/expenseStatus'
+import { smartBack } from '../../lib/navigationHistory'
 import { findExistingStoreId } from '../../lib/stores'
+import { formatCurrency } from '../../lib/units'
 
 interface DraftItem {
   id: string
@@ -27,11 +31,12 @@ function emptyItem(): DraftItem {
 
 function AddExpenseManual() {
   const navigate = useNavigate()
+  const confirm = useConfirm()
 
   const expenseCategories = useLiveQuery(() => db.expenseCategories.orderBy('name').toArray(), [])
   const stores = useLiveQuery(() => db.stores.orderBy('name').toArray(), [])
 
-  const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10))
+  const [fecha, setFecha] = useState(localTodayIso)
   const [currency, setCurrency] = useState(DEFAULT_CURRENCY)
   const [storeId, setStoreId] = useState('')
   const [items, setItems] = useState<DraftItem[]>(() => [emptyItem()])
@@ -64,6 +69,9 @@ function AddExpenseManual() {
     setItems((prev) => prev.filter((it) => it.id !== itemId))
   }
 
+  const itemsConMonto = items.filter((it) => it.monto.trim() !== '' && Number.isFinite(Number(it.monto)))
+  const totalItems = itemsConMonto.reduce((sum, it) => sum + Number(it.monto), 0)
+
   async function handleSave(e: FormEvent) {
     e.preventDefault()
     const validItems = items.filter((it) => it.nombre.trim() && Number(it.monto) >= 0)
@@ -75,7 +83,7 @@ function AddExpenseManual() {
     const uncategorized = validItems.filter((it) => it.categoryId === null)
     if (uncategorized.length > 0) {
       const names = uncategorized.map((it) => `- ${it.nombre.trim()}`).join('\n')
-      const proceed = confirm(`Aún no has categorizado:\n${names}\n\n¿Guardar de todos modos?`)
+      const proceed = await confirm({ title: 'Aún no has categorizado', body: `${names}\n\n¿Guardar de todos modos?` })
       if (!proceed) return
     }
 
@@ -107,7 +115,7 @@ function AddExpenseManual() {
       }
     })
 
-    navigate('/gastos')
+    smartBack(navigate, '/gastos')
   }
 
   return (
@@ -188,6 +196,13 @@ function AddExpenseManual() {
           >
             + Agregar producto
           </button>
+        </div>
+
+        <div>
+          <p className="font-display font-semibold">Total: {formatCurrency(totalItems)}</p>
+          <p className="text-xs text-black/40">
+            {itemsConMonto.length} producto{itemsConMonto.length === 1 ? '' : 's'}
+          </p>
         </div>
 
         <button

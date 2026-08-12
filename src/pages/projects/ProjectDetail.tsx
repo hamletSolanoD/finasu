@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useState, type FormEvent } from 'react'
 import { useParams } from 'react-router-dom'
 import { BackLink } from '../../components/BackLink'
+import { useConfirm } from '../../components/ConfirmModal'
 import { StorePicker } from '../../components/StorePicker'
 import { SwipeableRow } from '../../components/SwipeableRow'
 import { computeBudgetState } from '../../lib/budget'
@@ -68,6 +69,7 @@ function ProjectItemCard({
   isExpanded: boolean
   onToggleExpand: () => void
 }) {
+  const confirm = useConfirm()
   const stores = useLiveQuery(() => db.stores.orderBy('name').toArray(), [])
   const [storeId, setStoreId] = useState('')
   const [price, setPrice] = useState<number | ''>('')
@@ -109,7 +111,8 @@ function ProjectItemCard({
   }
 
   async function handleDeleteItem() {
-    if (!confirm(`¿Eliminar "${item.name}" y sus precios registrados?`)) return
+    const ok = await confirm({ title: `¿Eliminar "${item.name}" y sus precios registrados?` })
+    if (!ok) return
     await db.transaction('rw', db.projectItems, db.projectPriceEntries, async () => {
       await db.projectPriceEntries.where('projectItemId').equals(item.id).delete()
       await db.projectItems.delete(item.id)

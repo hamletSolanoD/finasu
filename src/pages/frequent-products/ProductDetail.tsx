@@ -3,6 +3,7 @@ import { useState, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { BackLink } from '../../components/BackLink'
 import { CategoryDropdown } from '../../components/CategoryDropdown'
+import { useConfirm } from '../../components/ConfirmModal'
 import { Dropdown } from '../../components/Dropdown'
 import { ImageUploader } from '../../components/ImageUploader'
 import { StorePicker } from '../../components/StorePicker'
@@ -17,6 +18,7 @@ import { PIECE_CONTENT_UNITS, UNITS_BY_KIND, displayUnitPrice, formatCurrency, f
 function ProductDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const confirm = useConfirm()
 
   const product = useLiveQuery(() => (id ? db.products.get(id) : undefined), [id])
   const entries = useLiveQuery(
@@ -129,7 +131,8 @@ function ProductDetail() {
   }
 
   async function handleDeleteProduct() {
-    if (!confirm(`¿Eliminar "${product!.name}" y todos sus precios registrados?`)) return
+    const ok = await confirm({ title: `¿Eliminar "${product!.name}" y todos sus precios registrados?` })
+    if (!ok) return
     await db.priceEntries.where('productId').equals(product!.id).delete()
     await db.products.delete(product!.id)
     navigate('/productos-frecuentes')

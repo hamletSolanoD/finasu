@@ -1,5 +1,5 @@
 import { useLiveQuery, useObservable } from 'dexie-react-hooks'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { db, updateSettings } from '../lib/db'
 import { recordVisit } from '../lib/navigationHistory'
@@ -59,8 +59,13 @@ export function Layout() {
     window.scrollTo(0, 0)
   }, [location.pathname])
 
-  // El menú lateral también se abre deslizando desde el borde derecho de la
-  // pantalla, a cualquier altura — no solo con el botón ☰.
+  // El menú lateral se abre deslizando desde el borde derecho de la pantalla
+  // hacia la izquierda (a cualquier altura, no solo con el botón ☰), y se
+  // vuelve a "poner en su lugar" deslizando hacia la derecha mientras está
+  // abierto — desde cualquier punto del panel, como cerrar una gaveta.
+  const menuOpenRef = useRef(menuOpen)
+  menuOpenRef.current = menuOpen
+
   useEffect(() => {
     let startX = 0
     let startY = 0
@@ -68,7 +73,8 @@ export function Layout() {
 
     function handleTouchStart(e: TouchEvent) {
       const touch = e.touches[0]
-      if (touch.clientX > window.innerWidth - 24) {
+      const nearRightEdge = touch.clientX > window.innerWidth - 24
+      if (menuOpenRef.current || nearRightEdge) {
         tracking = true
         startX = touch.clientX
         startY = touch.clientY
@@ -79,7 +85,11 @@ export function Layout() {
       const touch = e.touches[0]
       const dx = touch.clientX - startX
       const dy = touch.clientY - startY
-      if (dx < -40 && Math.abs(dx) > Math.abs(dy)) {
+      if (Math.abs(dx) <= Math.abs(dy)) return
+      if (menuOpenRef.current && dx > 40) {
+        setMenuOpen(false)
+        tracking = false
+      } else if (!menuOpenRef.current && dx < -40) {
         setMenuOpen(true)
         tracking = false
       }

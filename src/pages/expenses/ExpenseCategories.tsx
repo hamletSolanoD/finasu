@@ -1,7 +1,8 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { BackLink } from '../../components/BackLink'
+import { useConfirm } from '../../components/ConfirmModal'
 import { HomeStatusPanel } from '../../components/HomeStatusPanel'
 import { MonthLimitsSection, monthFullySet } from '../../components/MonthLimitsSection'
 import { computeMonthlySpendByCategory } from '../../lib/budget'
@@ -17,12 +18,16 @@ function ExpenseCategories() {
   const expenses = useLiveQuery(() => db.expenses.toArray(), [])
   const items = useLiveQuery(() => db.expenseItems.toArray(), [])
   const location = useLocation()
+  const confirm = useConfirm()
 
   const [creating, setCreating] = useState(false)
   const [name, setName] = useState('')
   const [icon, setIcon] = useState(ICON_PALETTE[0])
+  const [pulseLimits, setPulseLimits] = useState(false)
+  const limitsSectionRef = useRef<HTMLDivElement>(null)
 
   const highlightedCategoryId = location.hash.startsWith('#cat-') ? location.hash.slice(5) : null
+  const fromNotification = new URLSearchParams(location.search).get('desde') === 'notificacion'
 
   const categoriesReady = Boolean(categories && limits)
   useEffect(() => {
@@ -30,6 +35,19 @@ function ExpenseCategories() {
     const el = document.getElementById(`cat-${highlightedCategoryId}`)
     el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [categoriesReady, highlightedCategoryId])
+
+  // Si llegamos desde la notificación de límites, resaltamos el bloque de
+  // "Establece tus límites" con un anillo pulsante unos segundos y hacemos
+  // scroll hacia él — así queda claro qué hay que hacer al tocar la
+  // notificación. Se apaga solo con un setTimeout (no se queda parpadeando
+  // para siempre).
+  useEffect(() => {
+    if (!fromNotification || !categoriesReady) return
+    setPulseLimits(true)
+    limitsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    const timer = setTimeout(() => setPulseLimits(false), 2600)
+    return () => clearTimeout(timer)
+  }, [fromNotification, categoriesReady])
 
   if (!categories || !limits || !incomes || !expenses || !items) return null
 
@@ -54,12 +72,11 @@ function ExpenseCategories() {
   async function handleDeleteCategory(categoryId: string) {
     const category = categories?.find((c) => c.id === categoryId)
     if (!category) return
-    if (
-      !confirm(
-        `¿Eliminar la categoría "${category.name}"? También se borrará su historial de límites de meses anteriores. Esto no se puede deshacer.`,
-      )
-    )
-      return
+    const ok = await confirm({
+      title: `¿Eliminar la categoría "${category.name}"?`,
+      body: 'También se borrará su historial de límites de meses anteriores. Esto no se puede deshacer.',
+    })
+    if (!ok) return
     await db.transaction('rw', db.categoryLimits, db.expenseCategories, async () => {
       await db.categoryLimits.where('categoryId').equals(categoryId).delete()
       await db.expenseCategories.delete(categoryId)
@@ -89,7 +106,12 @@ function ExpenseCategories() {
         </Link>
       )}
 
-      <div className="mt-6">
+      <div
+        ref={limitsSectionRef}
+        className={`mt-6 rounded-2xl transition-shadow duration-500 ${
+          pulseLimits ? 'animate-pulse ring-2 ring-sky ring-offset-2 ring-offset-cream' : ''
+        }`}
+      >
         <MonthLimitsSection
           title={formatMonthLabel(currentMonthKey)}
           monthKey={currentMonthKey}

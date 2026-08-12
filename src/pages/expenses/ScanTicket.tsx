@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { DEFAULT_CURRENCY } from '../../lib/currency'
+import { localDateIso } from '../../lib/date'
 import { db } from '../../lib/db'
 import { fileToResizedDataUrl } from '../../lib/image'
 import { ensureIvaCategory, looksLikeIva } from '../../lib/ivaCategory'
@@ -59,7 +60,7 @@ function ScanTicket() {
       const status = ocrText.trim().length >= MIN_USABLE_OCR_LENGTH ? 'pendiente_de_categorizar' : 'requiere_revision'
       const parsedItems = status === 'pendiente_de_categorizar' ? parseTicketLines(ocrText) : []
       const capturedAt = Date.now()
-      const fecha = parseTicketDate(ocrText) ?? new Date(capturedAt).toISOString().slice(0, 10)
+      const fecha = parseTicketDate(ocrText) ?? localDateIso(new Date(capturedAt))
       const merchant = extractMerchantName(ocrText)
       const storeId = matchStoreByMerchant(merchant, stores)
 

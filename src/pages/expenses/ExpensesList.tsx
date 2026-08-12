@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useConfirm } from '../../components/ConfirmModal'
 import { DatePicker } from '../../components/DatePicker'
 import { PAGE_SIZE, Pagination } from '../../components/Pagination'
 import { SwipeableRow } from '../../components/SwipeableRow'
@@ -266,15 +267,18 @@ function ExpensesList() {
   )
 }
 
-async function handleDeleteExpense(expenseId: string) {
-  if (!confirm('¿Eliminar este ticket y sus productos?')) return
-  await db.transaction('rw', db.expenses, db.expenseItems, async () => {
-    await db.expenseItems.where('expenseId').equals(expenseId).delete()
-    await db.expenses.delete(expenseId)
-  })
-}
-
 function ExpenseRows({ expenses, items, stores }: { expenses: Expense[]; items: ExpenseItem[]; stores: Store[] }) {
+  const confirm = useConfirm()
+
+  async function handleDeleteExpense(expenseId: string) {
+    const ok = await confirm({ title: '¿Eliminar este ticket y sus productos?' })
+    if (!ok) return
+    await db.transaction('rw', db.expenses, db.expenseItems, async () => {
+      await db.expenseItems.where('expenseId').equals(expenseId).delete()
+      await db.expenses.delete(expenseId)
+    })
+  }
+
   return (
     <ul className="flex flex-col gap-2">
       {expenses.map((expense) => {
