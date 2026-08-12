@@ -13,7 +13,7 @@ import { CURRENCY_OPTIONS } from '../../lib/currency'
 import { db } from '../../lib/db'
 import { formatFechaLarga } from '../../lib/date'
 import { ICON_PALETTE } from '../../lib/expenseCategories'
-import { computeExpenseStatus } from '../../lib/expenseStatus'
+import { computeExpenseStatus, splitDraftItems } from '../../lib/expenseStatus'
 import { ensureIvaCategory, looksLikeIva } from '../../lib/ivaCategory'
 import { smartBack } from '../../lib/navigationHistory'
 import { findExistingStoreId, matchStoreByMerchant } from '../../lib/stores'
@@ -145,9 +145,21 @@ function ExpenseDetail() {
 
   async function handleSave(e: FormEvent) {
     e.preventDefault()
-    const validItems = items.filter((it) => it.nombre.trim() && Number(it.monto) >= 0)
+    const { complete: validItems, incomplete } = splitDraftItems(items)
     const existingIds = new Set((dbItems ?? []).map((i) => i.id))
     const keptIds = new Set(validItems.map((i) => i.id))
+
+    if (incomplete.length > 0) {
+      const willDelete = incomplete.some((it) => existingIds.has(it.id))
+      const names = incomplete.map((it) => `- ${it.nombre.trim() || '(sin nombre)'}`).join('\n')
+      const proceed = await confirm({
+        title: 'Hay productos incompletos',
+        body: willDelete
+          ? `Les falta nombre o monto, así que se van a ELIMINAR (ya estaban guardados):\n${names}\n\n¿Continuar?`
+          : `Les falta nombre o monto, así que no se van a guardar:\n${names}\n\n¿Continuar sin ellos?`,
+      })
+      if (!proceed) return
+    }
 
     const uncategorized = validItems.filter((it) => it.categoryId === null)
     if (uncategorized.length > 0) {

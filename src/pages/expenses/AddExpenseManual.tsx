@@ -13,7 +13,7 @@ import { CURRENCY_OPTIONS, DEFAULT_CURRENCY } from '../../lib/currency'
 import { localTodayIso } from '../../lib/date'
 import { db } from '../../lib/db'
 import { ICON_PALETTE } from '../../lib/expenseCategories'
-import { computeExpenseStatus } from '../../lib/expenseStatus'
+import { computeExpenseStatus, splitDraftItems } from '../../lib/expenseStatus'
 import { smartBack } from '../../lib/navigationHistory'
 import { findExistingStoreId } from '../../lib/stores'
 import { formatCurrency } from '../../lib/units'
@@ -74,10 +74,24 @@ function AddExpenseManual() {
 
   async function handleSave(e: FormEvent) {
     e.preventDefault()
-    const validItems = items.filter((it) => it.nombre.trim() && Number(it.monto) >= 0)
+    const { complete: validItems, incomplete } = splitDraftItems(items)
+
     if (validItems.length === 0) {
-      alert('Agrega al menos un producto con nombre y monto para guardar el gasto.')
+      alert(
+        incomplete.length > 0
+          ? 'Los productos que agregaste están incompletos — les falta nombre o monto. Complétalos para poder guardar.'
+          : 'Agrega al menos un producto con nombre y monto para guardar el gasto.',
+      )
       return
+    }
+
+    if (incomplete.length > 0) {
+      const names = incomplete.map((it) => `- ${it.nombre.trim() || '(sin nombre)'}`).join('\n')
+      const proceed = await confirm({
+        title: 'Hay productos incompletos',
+        body: `Les falta nombre o monto, así que no se van a guardar:\n${names}\n\n¿Continuar sin ellos?`,
+      })
+      if (!proceed) return
     }
 
     const uncategorized = validItems.filter((it) => it.categoryId === null)

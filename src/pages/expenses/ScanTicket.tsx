@@ -9,7 +9,7 @@ import { extractTextFromImage } from '../../lib/ocr'
 import { matchStoreByMerchant } from '../../lib/stores'
 import { extractMerchantName, parseTicketDate, parseTicketLines } from '../../lib/ticketParser'
 
-type ItemStatus = 'procesando' | 'guardado' | 'requiere_revision'
+type ItemStatus = 'procesando' | 'guardado' | 'requiere_revision' | 'error'
 
 interface CapturedItem {
   id: string
@@ -39,77 +39,87 @@ function ScanTicket() {
     }))
     setItems((prev) => [...initialItems, ...prev])
 
-    let ivaCategoryId: string | null = null
-    const stores = await db.stores.toArray()
+    try {
+      let ivaCategoryId: string | null = null
+      const stores = await db.stores.toArray()
 
-    for (let i = 0; i < fileArray.length; i++) {
-      const file = fileArray[i]
-      const item = initialItems[i]
+      for (let i = 0; i < fileArray.length; i++) {
+        const file = fileArray[i]
+        const item = initialItems[i]
 
-      let image: string | undefined
-      let ocrText = ''
-      try {
-        image = await fileToResizedDataUrl(file, 1600, 0.85)
-        const result = await extractTextFromImage(image)
-        ocrText = result.text
-      } catch {
-        // Si el OCR falla, igual guardamos el ticket (con la imagen si se alcanzó a leer)
-        // para no perderlo — se marca para revisión.
-      }
-
-      const status = ocrText.trim().length >= MIN_USABLE_OCR_LENGTH ? 'pendiente_de_categorizar' : 'requiere_revision'
-      const parsedItems = status === 'pendiente_de_categorizar' ? parseTicketLines(ocrText) : []
-      const capturedAt = Date.now()
-      const fecha = parseTicketDate(ocrText) ?? localDateIso(new Date(capturedAt))
-      const merchant = extractMerchantName(ocrText)
-      const storeId = matchStoreByMerchant(merchant, stores)
-
-      await db.expenses.add({
-        id: item.id,
-        image,
-        ocrText,
-        status,
-        fecha,
-        capturedAt,
-        currency: DEFAULT_CURRENCY,
-        merchant,
-        storeId,
-      })
-      if (parsedItems.length > 0) {
-        const itemsToAdd = []
-        for (let index = 0; index < parsedItems.length; index++) {
-          const p = parsedItems[index]
-          let categoryId: string | null = null
-          if (looksLikeIva(p.nombre)) {
-            ivaCategoryId ??= await ensureIvaCategory()
-            categoryId = ivaCategoryId
+        try {
+          let image: string | undefined
+          let ocrText = ''
+          try {
+            image = await fileToResizedDataUrl(file, 1600, 0.85)
+            const result = await extractTextFromImage(image)
+            ocrText = result.text
+          } catch {
+            // Si el OCR falla, igual guardamos el ticket (con la imagen si se alcanzó a leer)
+            // para no perderlo — se marca para revisión.
           }
-          itemsToAdd.push({
-            id: crypto.randomUUID(),
-            expenseId: item.id,
-            nombre: p.nombre,
-            monto: p.monto,
-            categoryId,
-            order: index,
+
+          const status =
+            ocrText.trim().length >= MIN_USABLE_OCR_LENGTH ? 'pendiente_de_categorizar' : 'requiere_revision'
+          const parsedItems = status === 'pendiente_de_categorizar' ? parseTicketLines(ocrText) : []
+          const capturedAt = Date.now()
+          const fecha = parseTicketDate(ocrText) ?? localDateIso(new Date(capturedAt))
+          const merchant = extractMerchantName(ocrText)
+          const storeId = matchStoreByMerchant(merchant, stores)
+
+          await db.expenses.add({
+            id: item.id,
+            image,
+            ocrText,
+            status,
+            fecha,
+            capturedAt,
+            currency: DEFAULT_CURRENCY,
+            merchant,
+            storeId,
           })
-        }
-        await db.expenseItems.bulkAdd(itemsToAdd)
-      }
-
-      setItems((prev) =>
-        prev.map((it) =>
-          it.id === item.id
-            ? {
-                ...it,
-                status: status === 'requiere_revision' ? 'requiere_revision' : 'guardado',
-                productCount: parsedItems.length,
+          if (parsedItems.length > 0) {
+            const itemsToAdd = []
+            for (let index = 0; index < parsedItems.length; index++) {
+              const p = parsedItems[index]
+              let categoryId: string | null = null
+              if (looksLikeIva(p.nombre)) {
+                ivaCategoryId ??= await ensureIvaCategory()
+                categoryId = ivaCategoryId
               }
-            : it,
-        ),
-      )
-    }
+              itemsToAdd.push({
+                id: crypto.randomUUID(),
+                expenseId: item.id,
+                nombre: p.nombre,
+                monto: p.monto,
+                categoryId,
+                order: index,
+              })
+            }
+            await db.expenseItems.bulkAdd(itemsToAdd)
+          }
 
-    setIsProcessing(false)
+          setItems((prev) =>
+            prev.map((it) =>
+              it.id === item.id
+                ? {
+                    ...it,
+                    status: status === 'requiere_revision' ? 'requiere_revision' : 'guardado',
+                    productCount: parsedItems.length,
+                  }
+                : it,
+            ),
+          )
+        } catch {
+          // Si falla la escritura a la base de datos (ej. IndexedDB llena), no se debe
+          // perder el resto del lote ni dejar la pantalla trabada en "Leyendo…" — se
+          // marca este ticket con error y se sigue con los demás.
+          setItems((prev) => prev.map((it) => (it.id === item.id ? { ...it, status: 'error' } : it)))
+        }
+      }
+    } finally {
+      setIsProcessing(false)
+    }
   }
 
   const reviewCount = items.filter((i) => i.status === 'requiere_revision').length
@@ -174,6 +184,9 @@ function ScanTicket() {
               )}
               {item.status === 'requiere_revision' && (
                 <span className="text-sm font-medium text-amber-700">Requiere revisión</span>
+              )}
+              {item.status === 'error' && (
+                <span className="text-sm font-medium text-red-700">⚠️ No se pudo guardar, intenta de nuevo</span>
               )}
             </li>
           ))}
