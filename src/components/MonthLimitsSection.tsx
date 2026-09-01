@@ -7,6 +7,7 @@ import { allLimitsSetForMonth, committedForMonth, getIncomeForMonth, getLimitFor
 import { formatFechaLarga } from '../lib/date'
 import { db } from '../lib/db'
 import { autoSetIvaLimitForMonth } from '../lib/ivaCategory'
+import { computeCategoryBreakdown } from '../lib/summary'
 import { useModalBack } from '../lib/useModalBack'
 import type { CategoryLimit, Expense, ExpenseCategory, ExpenseItem, MonthlyIncome } from '../lib/types'
 import { formatCurrency } from '../lib/units'
@@ -108,6 +109,7 @@ function IncomeRow({
             setValue(e.target.value)
             setError('')
           }}
+          onFocus={(e) => e.target.select()}
           placeholder="Sin declarar"
           className="w-28 rounded-lg border border-black/15 bg-white/70 px-2 py-1 text-right text-sm text-black/80"
         />
@@ -324,6 +326,7 @@ function CategoryLimitRow({
             setValue(e.target.value)
             setError('')
           }}
+          onFocus={(e) => e.target.select()}
           placeholder="Sin límite"
           className="w-28 rounded-lg border border-black/15 bg-white/70 px-2 py-1 text-right text-sm text-black/80"
         />
@@ -413,6 +416,24 @@ export function MonthLimitsSection({
   const missingCount = categories.filter((c) => getLimitForMonth(c.id, monthKey, limits) === null).length
   const isDraft = editable && !finalized
 
+  // Para meses cerrados (!editable, ver OtherMonths): "sobra"/"disponible" de
+  // arriba es lo PRESUPUESTADO (ingreso - límites) — no lo que en realidad
+  // pasó. Aquí se calcula lo real (ingreso - gasto real, categorías con
+  // límite numérico realmente puesto, y cuántas de esas se cumplieron) para
+  // no confundir "en teoría sobraba" con "en la práctica gasté de más".
+  const { total: totalSpent } = computeCategoryBreakdown(expenses, items, categories, monthKey)
+  const realBalance = income !== null ? income - totalSpent : null
+  const categoriesWithNumericLimit = categories.filter((c) => {
+    const l = getLimitForMonth(c.id, monthKey, limits)
+    return l !== null && l.limit !== null
+  })
+  const onBudgetCount = categoriesWithNumericLimit.filter((c) => {
+    const l = getLimitForMonth(c.id, monthKey, limits)!
+    return (spendByCategory.get(c.id) ?? 0) <= l.limit!
+  }).length
+  const efficiency =
+    categoriesWithNumericLimit.length > 0 ? (onBudgetCount / categoriesWithNumericLimit.length) * 100 : null
+
   async function handleFinalizeClick() {
     if (!onFinalize) return
     const complete = incomeRecord !== null && missingCount === 0
@@ -443,7 +464,7 @@ export function MonthLimitsSection({
           <p className="font-display text-2xl font-semibold">
             {formatCurrency(Math.max(0, remaining))}
             <span className="ml-2 text-sm font-normal text-black/50">
-              {allSet ? 'sobra' : 'disponible para repartir'}
+              {editable ? (allSet ? 'sobra' : 'disponible para repartir') : 'presupuestado'}
             </span>
           </p>
           {remaining < 0 && <p className="mt-1 text-xs text-red-700">Tus límites ya suman más que tu ingreso.</p>}
@@ -452,6 +473,36 @@ export function MonthLimitsSection({
               🤖 <span className="font-medium">Sugerencia de la IA:</span> próximamente aquí te diré en qué te
               conviene usar {formatCurrency(remaining)}, tomando en cuenta tus gastos y tus ahorros.
             </div>
+          )}
+
+          {!editable && realBalance !== null && (
+            <div className="mt-3 border-t border-black/10 pt-3">
+              <p className="text-sm text-black/60">
+                Gasto real: <span className="font-semibold text-black/80">{formatCurrency(totalSpent)}</span>
+              </p>
+              <p className={`mt-1 text-sm font-medium ${realBalance < 0 ? 'text-red-700' : 'text-emerald-700'}`}>
+                {realBalance < 0
+                  ? `Te pasaste por ${formatCurrency(Math.abs(realBalance))} de tu ingreso`
+                  : `De verdad sobraron ${formatCurrency(realBalance)}`}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {!editable && (
+        <div className="mt-2 rounded-2xl border border-black/10 bg-white/50 p-4">
+          <p className="text-sm text-black/60">
+            Categorías con límite: <span className="font-semibold text-black/80">{categoriesWithNumericLimit.length}/{categories.length}</span>
+          </p>
+          {efficiency !== null && (
+            <p className="mt-1 text-sm text-black/60">
+              Eficiencia del mes: <span className="font-semibold text-black/80">{Math.round(efficiency)}%</span>
+              <span className="text-xs text-black/40">
+                {' '}
+                ({onBudgetCount}/{categoriesWithNumericLimit.length} categorías con límite no se pasaron)
+              </span>
+            </p>
           )}
         </div>
       )}
