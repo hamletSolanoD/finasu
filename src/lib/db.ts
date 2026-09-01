@@ -22,6 +22,7 @@ import type {
   Project,
   ProjectItem,
   ProjectPriceEntry,
+  ProjectSubItem,
   SavingsDeposit,
   SavingsGoal,
   SavingsGoalDeletionLog,
@@ -64,6 +65,7 @@ class FinasuDB extends Dexie {
   creditCards!: Table<CreditCard, string>
   creditCardPayments!: Table<CreditCardPayment, string>
   monthFinalizations!: Table<MonthFinalization, string>
+  projectSubItems!: Table<ProjectSubItem, string>
 
   constructor() {
     super('finasu', { addons: [dexieCloud] })
@@ -659,6 +661,33 @@ class FinasuDB extends Dexie {
         if (monthKey >= currentMonthKey) continue
         await tx.table('monthFinalizations').put({ monthKey, finalizedAt })
       }
+    })
+
+    // v23: un artículo de proyecto puede agrupar varias cosas sueltas (ej.
+    // "Decoración" → Globos, Mantel, Pancarta) para agregarlas de un jalón en
+    // vez de crear un artículo del proyecto por cada una.
+    this.version(23).stores({
+      products: 'id, name, categoryId',
+      priceEntries: 'id, productId, store',
+      categories: 'id, name',
+      expenses: 'id, status, capturedAt',
+      expenseItems: 'id, expenseId, categoryId',
+      expenseCategories: 'id, name',
+      categoryLimits: 'id, categoryId, monthKey',
+      savingsGoals: 'id, name',
+      savingsDeposits: 'id, goalId, periodIndex',
+      futureExpenses: 'id, fechaObjetivo',
+      settings: 'id',
+      monthlyIncomes: 'id, monthKey',
+      savingsGoalDeletions: 'id, deletedAt',
+      projects: 'id, name',
+      projectItems: 'id, projectId, purchased',
+      projectPriceEntries: 'id, projectItemId, store',
+      stores: 'id, name',
+      creditCards: 'id, name',
+      creditCardPayments: 'id, cardId, date',
+      monthFinalizations: 'monthKey',
+      projectSubItems: 'id, itemId',
     })
 
     this.cloud.configure({

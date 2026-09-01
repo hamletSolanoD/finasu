@@ -9,7 +9,7 @@ import { computeBudgetState } from '../../lib/budget'
 import { db } from '../../lib/db'
 import { bestPriceFor, computeProjectEstimate } from '../../lib/projects'
 import { findExistingStoreId } from '../../lib/stores'
-import type { ProjectItem, ProjectPriceEntry } from '../../lib/types'
+import type { ProjectItem, ProjectPriceEntry, ProjectSubItem } from '../../lib/types'
 import { formatCurrency } from '../../lib/units'
 
 function ProjectNameField({ projectId, name }: { projectId: string; name: string }) {
@@ -61,11 +61,13 @@ function EstimateProgress({ estimate, budget }: { estimate: number; budget: numb
 function ProjectItemCard({
   item,
   entries,
+  subItems,
   isExpanded,
   onToggleExpand,
 }: {
   item: ProjectItem
   entries: ProjectPriceEntry[]
+  subItems: ProjectSubItem[]
   isExpanded: boolean
   onToggleExpand: () => void
 }) {
@@ -73,12 +75,42 @@ function ProjectItemCard({
   const stores = useLiveQuery(() => db.stores.orderBy('name').toArray(), [])
   const [storeId, setStoreId] = useState('')
   const [price, setPrice] = useState<number | ''>('')
+  const [bulkAddText, setBulkAddText] = useState('')
 
   const best = bestPriceFor(item.id, entries)
   const ranked = entries.slice().sort((a, b) => a.price - b.price)
+  const purchasedSubItems = subItems.filter((s) => s.purchased).length
+  const hasSubItems = subItems.length > 0
 
   async function handleTogglePurchased() {
     await db.projectItems.update(item.id, { purchased: !item.purchased })
+  }
+
+  async function handleToggleSubItemPurchased(subItem: ProjectSubItem) {
+    await db.projectSubItems.update(subItem.id, { purchased: !subItem.purchased })
+  }
+
+  async function handleAddSubItems(e: FormEvent) {
+    e.preventDefault()
+    const names = bulkAddText
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+    if (names.length === 0) return
+    await db.projectSubItems.bulkAdd(
+      names.map((name) => ({
+        id: crypto.randomUUID(),
+        itemId: item.id,
+        name,
+        purchased: false,
+        createdAt: Date.now(),
+      })),
+    )
+    setBulkAddText('')
+  }
+
+  async function handleDeleteSubItem(subItemId: string) {
+    await db.projectSubItems.delete(subItemId)
   }
 
   async function handleCreateStore(name: string, icon: string, image?: string) {
@@ -113,8 +145,9 @@ function ProjectItemCard({
   async function handleDeleteItem() {
     const ok = await confirm({ title: `¿Eliminar "${item.name}" y sus precios registrados?` })
     if (!ok) return
-    await db.transaction('rw', db.projectItems, db.projectPriceEntries, async () => {
+    await db.transaction('rw', db.projectItems, db.projectPriceEntries, db.projectSubItems, async () => {
       await db.projectPriceEntries.where('projectItemId').equals(item.id).delete()
+      await db.projectSubItems.where('itemId').equals(item.id).delete()
       await db.projectItems.delete(item.id)
     })
   }
@@ -123,17 +156,38 @@ function ProjectItemCard({
     <li>
       <SwipeableRow onDelete={handleDeleteItem}>
         <div className="flex items-center gap-3 rounded-xl border border-black/10 bg-white/60 p-3">
-          <input
-            type="checkbox"
-            checked={item.purchased}
-            onChange={handleTogglePurchased}
-            className="h-5 w-5 shrink-0 rounded border-black/20 accent-sage"
-            aria-label="Comprado"
-          />
+          {hasSubItems ? (
+            <span
+              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
+                purchasedSubItems === subItems.length ? 'bg-sage text-black/80' : 'bg-black/5 text-black/50'
+              }`}
+              aria-hidden
+            >
+              {purchasedSubItems}/{subItems.length}
+            </span>
+          ) : (
+            <input
+              type="checkbox"
+              checked={item.purchased}
+              onChange={handleTogglePurchased}
+              className="h-5 w-5 shrink-0 rounded border-black/20 accent-sage"
+              aria-label="Comprado"
+            />
+          )}
           <div className="min-w-0 flex-1">
-            <p className={`font-medium ${item.purchased ? 'text-black/40 line-through' : ''}`}>{item.name}</p>
+            <p
+              className={`font-medium ${
+                !hasSubItems && item.purchased ? 'text-black/40 line-through' : ''
+              }`}
+            >
+              {item.name}
+            </p>
             <p className="text-xs text-black/50">
-              {best ? `${formatCurrency(best.price)} en ${best.store}` : 'Sin precio todavía'}
+              {hasSubItems
+                ? `${subItems.length} cosa${subItems.length === 1 ? '' : 's'} en la lista`
+                : best
+                  ? `${formatCurrency(best.price)} en ${best.store}`
+                  : 'Sin precio todavía'}
             </p>
           </div>
           <button
@@ -141,13 +195,60 @@ function ProjectItemCard({
             onClick={onToggleExpand}
             className="shrink-0 text-xs font-medium text-black/50 underline hover:text-black/70"
           >
-            {isExpanded ? 'Ocultar precios' : 'Ver precios'}
+            {isExpanded ? 'Ocultar detalles' : 'Ver detalles'}
           </button>
         </div>
       </SwipeableRow>
 
       {isExpanded && (
         <div className="mt-3 border-t border-black/10 pt-3">
+          <p className="text-sm font-medium text-black/70">🗂️ Lista de cosas</p>
+          <p className="mt-1 text-xs text-black/40">
+            Si "{item.name}" agrupa varias cosas (ej. Decoración → Globos, Mantel, Pancarta), agrégalas aquí — una
+            por línea, todas de un jalón.
+          </p>
+
+          {hasSubItems && (
+            <ul className="mt-3 flex flex-col gap-2">
+              {subItems.map((subItem) => (
+                <li key={subItem.id}>
+                  <SwipeableRow onDelete={() => handleDeleteSubItem(subItem.id)}>
+                    <div className="flex items-center gap-3 rounded-xl border border-black/10 bg-white/50 p-2.5">
+                      <input
+                        type="checkbox"
+                        checked={subItem.purchased}
+                        onChange={() => handleToggleSubItemPurchased(subItem)}
+                        className="h-4 w-4 shrink-0 rounded border-black/20 accent-sage"
+                        aria-label="Comprado"
+                      />
+                      <span className={`text-sm ${subItem.purchased ? 'text-black/40 line-through' : ''}`}>
+                        {subItem.name}
+                      </span>
+                    </div>
+                  </SwipeableRow>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <form onSubmit={handleAddSubItems} className="mt-3 flex flex-col gap-2">
+            <textarea
+              value={bulkAddText}
+              onChange={(e) => setBulkAddText(e.target.value)}
+              placeholder={'Ej.\nGlobos\nMantel\nPancarta'}
+              rows={3}
+              className="rounded-xl border border-black/15 bg-white/70 px-3 py-2 text-sm text-black/80"
+            />
+            <button
+              type="submit"
+              disabled={!bulkAddText.trim()}
+              className="self-start rounded-full border border-black/15 bg-white/60 px-4 py-1.5 text-sm font-medium text-black/70 transition hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              + Agregar a la lista
+            </button>
+          </form>
+
+          <p className="mt-5 text-sm font-medium text-black/70">💲 Precios</p>
           {ranked.length === 0 ? (
             <p className="text-sm text-black/50">Aún no hay precios registrados.</p>
           ) : (
@@ -223,6 +324,7 @@ function ProjectDetail() {
   const project = useLiveQuery(() => (id ? db.projects.get(id) : undefined), [id])
   const items = useLiveQuery(() => (id ? db.projectItems.where('projectId').equals(id).toArray() : []), [id]) ?? []
   const allEntries = useLiveQuery(() => db.projectPriceEntries.toArray(), []) ?? []
+  const allSubItems = useLiveQuery(() => db.projectSubItems.toArray(), []) ?? []
 
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [newItemName, setNewItemName] = useState('')
@@ -231,6 +333,7 @@ function ProjectDetail() {
 
   const itemIds = new Set(items.map((i) => i.id))
   const entries = allEntries.filter((e) => itemIds.has(e.projectItemId))
+  const subItems = allSubItems.filter((s) => itemIds.has(s.itemId))
   const estimate = computeProjectEstimate(items, entries)
 
   function toggleExpand(itemId: string) {
@@ -297,6 +400,7 @@ function ProjectDetail() {
                 key={item.id}
                 item={item}
                 entries={entries.filter((e) => e.projectItemId === item.id)}
+                subItems={subItems.filter((s) => s.itemId === item.id)}
                 isExpanded={expandedIds.has(item.id)}
                 onToggleExpand={() => toggleExpand(item.id)}
               />

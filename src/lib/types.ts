@@ -277,3 +277,19 @@ export interface ProjectPriceEntry {
   price: number
   date: number
 }
+
+/**
+ * Una cosa suelta dentro de un artículo de proyecto — ej. el artículo
+ * "Decoración" puede agrupar "Globos", "Mantel", "Pancarta"... así se agregan
+ * de un jalón (varias líneas a la vez) en vez de crear un artículo del
+ * proyecto por cada una. Un artículo sin ninguna de estas sigue siendo un
+ * producto individual normal, con su propio checkbox y comparación de
+ * precios — no es obligatorio usar listas.
+ */
+export interface ProjectSubItem {
+  id: string
+  itemId: string
+  name: string
+  purchased: boolean
+  createdAt: number
+}
