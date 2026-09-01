@@ -269,11 +269,16 @@ export interface ProjectItem {
   createdAt: number
 }
 
-/** Una opción de tienda+precio para un artículo — permite comparar antes de comprar. */
+/**
+ * Una opción de tienda+precio para un artículo — permite comparar antes de
+ * comprar. `store` es opcional: el campo rápido de precio en la tarjeta del
+ * artículo guarda solo el monto, sin pedir tienda — para cuando nada más
+ * quieres anotar cuánto cuesta, sin comparar dónde.
+ */
 export interface ProjectPriceEntry {
   id: string
   projectItemId: string
-  store: string
+  store?: string
   price: number
   date: number
 }

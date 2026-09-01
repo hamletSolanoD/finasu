@@ -11,6 +11,15 @@ interface ConfirmOptions {
   danger?: boolean
   /** true = solo un botón "Entendido", sin Cancelar — reemplazo de window.alert() para avisos que no piden decisión. */
   alertOnly?: boolean
+  /**
+   * true = este confirm NO empuja su propia entrada de historial (no se
+   * integra con el botón atrás). Solo para cuando ya se muestra DENTRO de un
+   * flujo que maneja su propio historial (ej. useLeaveGuard) — si el modal
+   * TAMBIÉN empujara/limpiara su entrada, compite por el mismo popstate con
+   * quien lo mandó llamar y puede dejar al usuario sin poder salir de
+   * verdad aunque haya confirmado que sí quiere salir.
+   */
+  skipHistoryBack?: boolean
 }
 
 type Confirm = (options: ConfirmOptions) => Promise<boolean>
@@ -48,7 +57,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     setOptions(null)
   }
 
-  useModalBack(options !== null, () => settle(false))
+  useModalBack(options !== null && !options.skipHistoryBack, () => settle(false))
 
   return (
     <ConfirmContext.Provider value={confirm}>

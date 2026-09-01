@@ -42,3 +42,14 @@ export function smartBack(navigate: NavigateFunction, hub: string): void {
     navigate(hub, { replace: true })
   }
 }
+
+/**
+ * La sección de primer nivel de una ruta — el primer segmento del path (o
+ * '/' para Inicio). Todo lo que cuelga de /gastos/* (categorías, detalle de
+ * un gasto, escanear...) es la misma sección "/gastos".
+ */
+export function topLevelSection(pathname: string): string {
+  if (pathname === '/') return '/'
+  const firstSegment = pathname.split('/').filter(Boolean)[0]
+  return firstSegment ? `/${firstSegment}` : '/'
+}

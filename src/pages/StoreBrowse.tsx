@@ -291,6 +291,9 @@ function StoreBrowse() {
       map.set(entry.store, (map.get(entry.store) ?? 0) + 1)
     }
     for (const { entry } of bestPerProjectItem) {
+      // El precio rápido de un artículo de proyecto no siempre trae tienda —
+      // no cuenta para ninguna en particular.
+      if (!entry.store) continue
       map.set(entry.store, (map.get(entry.store) ?? 0) + 1)
     }
     return [...map.entries()].sort((a, b) => b[1] - a[1])

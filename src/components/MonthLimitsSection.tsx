@@ -436,6 +436,24 @@ export function MonthLimitsSection({
 
   async function handleFinalizeClick() {
     if (!onFinalize) return
+
+    // El balance negativo se pregunta APARTE de "te faltan categorías" — es
+    // una decisión distinta (no es que falte decidir algo, es que lo ya
+    // decidido no alcanza) y a veces es válido arrancar el mes así a
+    // propósito, así que aquí se puede elegir seguir en vez de solo avisar.
+    if (remaining !== null && remaining < 0) {
+      const proceedAnyway = await confirm({
+        title: `Tu balance queda en negativo — te pasaste por ${formatCurrency(Math.abs(remaining))}`,
+        body: 'Puedes volver a ajustar tus límites, o guardar así de todos modos — a veces el mes arranca con la cuenta en contra y está bien.',
+        confirmLabel: 'Guardar así de todos modos',
+        cancelLabel: 'Volver a ajustar límites',
+        danger: true,
+      })
+      if (!proceedAnyway) return
+      await onFinalize()
+      return
+    }
+
     const complete = incomeRecord !== null && missingCount === 0
     const ok = await confirm({
       title: complete

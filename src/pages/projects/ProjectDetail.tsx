@@ -75,6 +75,7 @@ function ProjectItemCard({
   const stores = useLiveQuery(() => db.stores.orderBy('name').toArray(), [])
   const [storeId, setStoreId] = useState('')
   const [price, setPrice] = useState<number | ''>('')
+  const [quickPrice, setQuickPrice] = useState('')
   const [bulkAddText, setBulkAddText] = useState('')
 
   const best = bestPriceFor(item.id, entries)
@@ -84,6 +85,19 @@ function ProjectItemCard({
 
   async function handleTogglePurchased() {
     await db.projectItems.update(item.id, { purchased: !item.purchased })
+  }
+
+  async function handleQuickPriceSubmit(e: FormEvent) {
+    e.preventDefault()
+    const parsed = Number(quickPrice)
+    if (!quickPrice.trim() || !Number.isFinite(parsed) || parsed <= 0) return
+    await db.projectPriceEntries.add({
+      id: crypto.randomUUID(),
+      projectItemId: item.id,
+      price: parsed,
+      date: Date.now(),
+    })
+    setQuickPrice('')
   }
 
   async function handleToggleSubItemPurchased(subItem: ProjectSubItem) {
@@ -155,7 +169,12 @@ function ProjectItemCard({
   return (
     <li>
       <SwipeableRow onDelete={handleDeleteItem}>
-        <div className="flex items-center gap-3 rounded-xl border border-black/10 bg-white/60 p-3">
+        <div
+          onClick={onToggleExpand}
+          role="button"
+          tabIndex={0}
+          className="flex cursor-pointer items-center gap-3 rounded-xl border border-black/10 bg-white/60 p-3"
+        >
           {hasSubItems ? (
             <span
               className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
@@ -170,6 +189,7 @@ function ProjectItemCard({
               type="checkbox"
               checked={item.purchased}
               onChange={handleTogglePurchased}
+              onClick={(e) => e.stopPropagation()}
               className="h-5 w-5 shrink-0 rounded border-black/20 accent-sage"
               aria-label="Comprado"
             />
@@ -186,17 +206,28 @@ function ProjectItemCard({
               {hasSubItems
                 ? `${subItems.length} cosa${subItems.length === 1 ? '' : 's'} en la lista`
                 : best
-                  ? `${formatCurrency(best.price)} en ${best.store}`
+                  ? `${formatCurrency(best.price)}${best.store ? ` en ${best.store}` : ''}`
                   : 'Sin precio todavía'}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onToggleExpand}
-            className="shrink-0 text-xs font-medium text-black/50 underline hover:text-black/70"
+          <form
+            onSubmit={handleQuickPriceSubmit}
+            onClick={(e) => e.stopPropagation()}
+            className="flex shrink-0 items-center gap-1"
           >
-            {isExpanded ? 'Ocultar detalles' : 'Ver detalles'}
-          </button>
+            <span className="text-sm text-black/40">$</span>
+            <input
+              type="number"
+              min="0"
+              step="any"
+              value={quickPrice}
+              onChange={(e) => setQuickPrice(e.target.value)}
+              onFocus={(e) => e.target.select()}
+              placeholder="0.00"
+              aria-label="Agregar precio"
+              className="w-20 rounded-lg border border-black/15 bg-white/70 px-2 py-1 text-right text-sm text-black/80"
+            />
+          </form>
         </div>
       </SwipeableRow>
 
@@ -262,7 +293,7 @@ function ProjectItemCard({
                       }`}
                     >
                       <p className="font-medium">
-                        {entry.store}
+                        {entry.store ?? 'Sin tienda'}
                         {i === 0 && (
                           <span className="ml-2 rounded-full bg-sage px-2 py-0.5 text-xs font-semibold">
                             Mejor precio
@@ -314,10 +345,6 @@ function ProjectItemCard({
   )
 }
 
-/** Presupuesto máximo cubierto por el slider — cómodo para proyectos personales reales. */
-const BUDGET_SLIDER_MAX = 50000
-const BUDGET_SLIDER_STEP = 100
-
 function ProjectDetail() {
   const { id } = useParams<{ id: string }>()
 
@@ -364,22 +391,24 @@ function ProjectDetail() {
 
       <div className="mt-4">
         <ProjectNameField projectId={project.id} name={project.name} />
-        <div className="mt-2 flex items-center justify-between text-sm text-black/60">
+        <div className="mt-2 flex items-center justify-between gap-2 text-sm text-black/60">
           <span>Presupuesto</span>
-          <span className="font-semibold text-black/80">
-            {project.budget !== null ? formatCurrency(project.budget) : 'Sin definir'}
-          </span>
+          <div className="flex items-center gap-1">
+            <span className="text-black/50">$</span>
+            <input
+              type="number"
+              min="0"
+              step="any"
+              value={project.budget ?? ''}
+              onChange={(e) =>
+                db.projects.update(project.id, { budget: e.target.value === '' ? null : Number(e.target.value) })
+              }
+              onFocus={(e) => e.target.select()}
+              placeholder="Sin definir"
+              className="w-28 rounded-lg border border-black/15 bg-white/70 px-2 py-1 text-right text-black/80"
+            />
+          </div>
         </div>
-        <input
-          type="range"
-          min={0}
-          max={BUDGET_SLIDER_MAX}
-          step={BUDGET_SLIDER_STEP}
-          value={project.budget ?? 0}
-          onChange={(e) => db.projects.update(project.id, { budget: Number(e.target.value) })}
-          className="mt-2 w-full accent-sage"
-          aria-label="Presupuesto"
-        />
       </div>
 
       <section className="mt-6 rounded-2xl border border-black/10 bg-white/50 p-4">
@@ -390,7 +419,12 @@ function ProjectDetail() {
       </section>
 
       <section className="mt-8">
-        <h2 className="font-display font-semibold">Artículos</h2>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="font-display font-semibold">Artículos</h2>
+          <span className="text-sm text-black/60">
+            Total: <span className="font-semibold text-black/80">{formatCurrency(estimate)}</span>
+          </span>
+        </div>
         {items.length === 0 ? (
           <p className="mt-2 text-sm text-black/50">Aún no agregas ningún artículo.</p>
         ) : (

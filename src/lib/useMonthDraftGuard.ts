@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { useConfirm } from '../components/ConfirmModal'
 import { getLimitForMonth } from './categoryLimits'
 import { useLeaveGuard } from './useLeaveGuard'
@@ -26,6 +27,7 @@ export function useMonthDraftGuard({ monthKey, categories, limits, incomeRecord,
   attemptLeave: () => Promise<boolean>
 } {
   const confirm = useConfirm()
+  const navigate = useNavigate()
 
   async function attemptLeave(): Promise<boolean> {
     if (finalized) return true
@@ -43,6 +45,11 @@ export function useMonthDraftGuard({ monthKey, categories, limits, incomeRecord,
         confirmLabel: 'Salir de todos modos',
         cancelLabel: 'Seguir aquí',
         danger: false,
+        // Este confirm puede llegar desde el botón atrás del teléfono
+        // (useLeaveGuard, más abajo) — ese flujo ya maneja su propio
+        // historial; si el modal TAMBIÉN empujara/limpiara el suyo,
+        // competirían por el mismo popstate.
+        skipHistoryBack: true,
       })
     }
 
@@ -52,12 +59,18 @@ export function useMonthDraftGuard({ monthKey, categories, limits, incomeRecord,
       confirmLabel: 'Guardar y salir',
       cancelLabel: 'Salir sin guardar',
       danger: false,
+      skipHistoryBack: true,
     })
     if (wantsToFinalize) await onFinalize()
     return true
   }
 
-  useLeaveGuard(!finalized, attemptLeave)
+  // Al confirmar "salir" desde el botón atrás del teléfono, se navega directo
+  // a Inicio en vez de intentar "repetir" el back original — el confirm que
+  // acaba de cerrarse ya está limpiando su propia entrada de historial
+  // (useModalBack), y competir por otro history.back() al mismo tiempo es
+  // justo la carrera que dejaba a la pantalla sin salir de verdad.
+  useLeaveGuard(!finalized, attemptLeave, () => navigate('/', { replace: true }))
 
   return { attemptLeave }
 }

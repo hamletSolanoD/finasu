@@ -1,8 +1,8 @@
 import { useLiveQuery, useObservable } from 'dexie-react-hooks'
 import { useEffect, useRef, useState } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate, useNavigationType } from 'react-router-dom'
 import { db, updateSettings } from '../lib/db'
-import { recordVisit } from '../lib/navigationHistory'
+import { recordVisit, topLevelSection } from '../lib/navigationHistory'
 import { AuthModal } from './AuthModal'
 import { NotificationsBell } from './NotificationsBell'
 import { OnboardingTour } from './OnboardingTour'
@@ -28,6 +28,9 @@ export function Layout() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [tourOpen, setTourOpen] = useState(false)
   const location = useLocation()
+  const navigate = useNavigate()
+  const navigationType = useNavigationType()
+  const prevPathnameRef = useRef(location.pathname)
   const settings = useLiveQuery(() => db.settings.get('default'), [])
   const currentUser = useObservable(db.cloud.currentUser)
   const isLoggedIn = Boolean(currentUser?.isLoggedIn)
@@ -54,9 +57,28 @@ export function Layout() {
 
   // Cada sección arranca desde arriba (no donde quedó el scroll de la anterior),
   // y se registra la visita para que BackLink sepa desde dónde llegaste.
+  //
+  // Además: si el atrás (POP — botón físico del teléfono, o BackLink cuando
+  // consume una entrada real) te saca de la sección en la que estabas hacia
+  // OTRA sección distinta (ej. venías de Proyectos y el historial real del
+  // navegador te lleva a Ahorro, porque la visitaste antes en la sesión), en
+  // vez de dejarte ahí se te manda directo a Inicio — no queremos que "atrás"
+  // te pasee por todo lo que visitaste, solo que te saque limpio de la
+  // sección actual. Ir DENTRO de la misma sección (ej. Detalle → Lista, los
+  // dos bajo /gastos) no se toca, sigue el historial normal.
   useEffect(() => {
+    const prevPathname = prevPathnameRef.current
+    prevPathnameRef.current = location.pathname
     recordVisit(location.pathname)
     window.scrollTo(0, 0)
+
+    if (navigationType === 'POP' && location.pathname !== '/') {
+      const currentSection = topLevelSection(location.pathname)
+      const previousSection = topLevelSection(prevPathname)
+      if (currentSection !== previousSection) {
+        navigate('/', { replace: true })
+      }
+    }
   }, [location.pathname])
 
   // El menú lateral se abre deslizando desde el borde derecho de la pantalla
