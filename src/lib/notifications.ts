@@ -90,7 +90,7 @@ export function computeWarnings(
   limits: CategoryLimit[],
   monthKey: string,
 ): CategoryWarning[] {
-  const spendByCategory = computeMonthlySpendByCategory(expenses, items)
+  const spendByCategory = computeMonthlySpendByCategory(expenses, items, monthKey)
 
   const paces = categories
     .map((category) => ({ category, limitRecord: getLimitForMonth(category.id, monthKey, limits) }))

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useConfirm } from './ConfirmModal'
 import { SwipeableRow } from './SwipeableRow'
 import { computeBudgetState } from '../lib/budget'
 import { allLimitsSetForMonth, committedForMonth, getIncomeForMonth, getLimitForMonth } from '../lib/categoryLimits'
@@ -50,6 +51,7 @@ function IncomeRow({
 }) {
   const [value, setValue] = useState('')
   const [error, setError] = useState('')
+  const confirm = useConfirm()
 
   if (incomeRecord || !editable) {
     return (
@@ -70,6 +72,13 @@ function IncomeRow({
       setError('Ingresa un monto válido')
       return
     }
+    const ok = await confirm({
+      title: parsed === null ? '¿Guardar este mes sin declarar ingreso?' : `¿Guardar ${formatCurrency(parsed)} de ingreso?`,
+      body: 'Una vez guardado no lo vas a poder editar hasta el próximo mes.',
+      confirmLabel: 'Guardar',
+      danger: false,
+    })
+    if (!ok) return
     await db.monthlyIncomes.add({
       id: crypto.randomUUID(),
       monthKey,
@@ -219,6 +228,7 @@ function CategoryLimitRow({
   const [value, setValue] = useState('')
   const [error, setError] = useState('')
   const [showExpenses, setShowExpenses] = useState(false)
+  const confirm = useConfirm()
   const domId = `cat-${category.id}`
   const highlightRing = highlighted ? 'ring-2 ring-sky ring-offset-2 ring-offset-cream' : ''
 
@@ -274,6 +284,16 @@ function CategoryLimitRow({
         return
       }
     }
+    const ok = await confirm({
+      title:
+        parsed === null
+          ? `¿Dejar ${category.name} sin límite este mes?`
+          : `¿Guardar límite de ${formatCurrency(parsed)} para ${category.name}?`,
+      body: 'Una vez guardado no lo vas a poder editar hasta el próximo mes.',
+      confirmLabel: 'Guardar',
+      danger: false,
+    })
+    if (!ok) return
     await db.categoryLimits.add({
       id: crypto.randomUUID(),
       categoryId: category.id,

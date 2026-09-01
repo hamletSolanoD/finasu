@@ -55,7 +55,7 @@ function ExpenseCategories() {
   const nextMonthKey = monthKeyWithOffset(1)
   const advanceNotice = isLastDayOfCurrentMonth()
   const nextMonthReady = monthFullySet(categories, limits, incomes, nextMonthKey)
-  const spendByCategory = computeMonthlySpendByCategory(expenses, items)
+  const spendByCategory = computeMonthlySpendByCategory(expenses, items, currentMonthKey)
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault()

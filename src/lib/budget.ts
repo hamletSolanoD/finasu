@@ -1,18 +1,15 @@
 import { getLimitForMonth } from './categoryLimits'
 import type { CategoryLimit, Expense, ExpenseCategory, ExpenseItem } from './types'
 
-export function isInCurrentMonth(fecha: string): boolean {
-  const now = new Date()
-  const [year, month] = fecha.split('-').map(Number)
-  return year === now.getFullYear() && month === now.getMonth() + 1
-}
-
-/** Suma, por categoría, lo gastado este mes — solo cuenta productos ya categorizados. */
+/** Suma, por categoría, lo gastado en `monthKey` ("YYYY-MM") — solo cuenta productos ya categorizados. */
 export function computeMonthlySpendByCategory(
   expenses: Pick<Expense, 'id' | 'fecha'>[],
   items: Pick<ExpenseItem, 'expenseId' | 'categoryId' | 'monto'>[],
+  monthKey: string,
 ): Map<string, number> {
-  const expenseIdsThisMonth = new Set(expenses.filter((e) => isInCurrentMonth(e.fecha)).map((e) => e.id))
+  const expenseIdsThisMonth = new Set(
+    expenses.filter((e) => e.fecha.slice(0, 7) === monthKey).map((e) => e.id),
+  )
   const spendByCategory = new Map<string, number>()
 
   for (const item of items) {
@@ -94,7 +91,7 @@ export function getCategoryAlerts(
   limits: CategoryLimit[],
   monthKey: string,
 ): CategoryAlert[] {
-  const spendByCategory = computeMonthlySpendByCategory(expenses, items)
+  const spendByCategory = computeMonthlySpendByCategory(expenses, items, monthKey)
   return categories
     .map((c) => ({ category: c, limit: getLimitForMonth(c.id, monthKey, limits) }))
     .filter((x): x is { category: ExpenseCategory; limit: CategoryLimit } => x.limit !== null && x.limit.limit !== null)

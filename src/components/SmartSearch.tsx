@@ -42,7 +42,7 @@ function computeAnswer(
 
   const matchedCategory = categories.find((c) => q.includes(c.name.toLowerCase()))
   if (matchedCategory) {
-    const spendByCategory = computeMonthlySpendByCategory(expenses, items)
+    const spendByCategory = computeMonthlySpendByCategory(expenses, items, monthKey)
     const spent = spendByCategory.get(matchedCategory.id) ?? 0
     return {
       text: `Llevas ${formatCurrency(spent)} en ${matchedCategory.icon} ${matchedCategory.name} este mes.`,

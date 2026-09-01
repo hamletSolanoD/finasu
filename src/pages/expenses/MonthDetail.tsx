@@ -19,7 +19,7 @@ function MonthDetail() {
 
   if (!monthKey || !categories || !limits || !incomes || !expenses || !items) return null
 
-  const spendByCategory = computeMonthlySpendByCategory(expenses, items)
+  const spendByCategory = computeMonthlySpendByCategory(expenses, items, monthKey)
 
   async function handleDeleteCategory(categoryId: string) {
     const category = categories?.find((c) => c.id === categoryId)

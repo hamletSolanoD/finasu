@@ -9,10 +9,14 @@ function isInteractive(target: EventTarget | null): boolean {
   return Boolean(target.closest('button, input, a, select, textarea, label'))
 }
 
+/** Cuánto hay que mantener presionado para revelar el panel sin arrastrar (imita un long-press nativo). */
+const LONG_PRESS_MS = 450
+
 /**
  * Fila que revela acciones de editar/eliminar al deslizar hacia la izquierda
- * o al tocarla — como una lista de reproducción de YouTube. onEdit es
- * opcional: si no se pasa, solo se revela el botón de eliminar.
+ * o al mantenerla presionada (long-press) — un tap normal ya NO la abre, para
+ * no competir con la acción principal de la fila (ej. un Link que navega).
+ * onEdit es opcional: si no se pasa, solo se revela el botón de eliminar.
  */
 export function SwipeableRow({
   children,
@@ -32,6 +36,14 @@ export function SwipeableRow({
   const contentRef = useRef<HTMLDivElement>(null)
   const wheelAccumRef = useRef(0)
   const wheelResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const longPressFiredRef = useRef(false)
+
+  useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current)
+    }
+  }, [])
 
   // En una laptop, "deslizar" con el trackpad genera eventos wheel (deltaX), no
   // pointer/touch — sin esto, el gesto no hace nada en Mac/Windows con trackpad.
@@ -77,20 +89,53 @@ export function SwipeableRow({
   }, [open])
 
   function handlePointerDown(e: PointerEvent) {
-    dragState.current = { startX: e.clientX, moved: false, startedOnInteractive: isInteractive(e.target) }
+    const startedOnInteractive = isInteractive(e.target)
+    dragState.current = { startX: e.clientX, moved: false, startedOnInteractive }
+    longPressFiredRef.current = false
+
+    // Solo se arma el long-press si la fila está cerrada y no se empezó sobre
+    // contenido interactivo propio (input, botón...) — igual que el tap normal
+    // NO debía abrirla ahí antes.
+    if (!open && !startedOnInteractive) {
+      longPressTimerRef.current = setTimeout(() => {
+        longPressTimerRef.current = null
+        longPressFiredRef.current = true
+        setOpen(true)
+        // El pointerup que venga después (al soltar) no debe disparar la acción
+        // normal de la fila (ej. navegar un Link) — ya usamos el toque para revelar.
+        suppressClickRef.current = true
+      }, LONG_PRESS_MS)
+    }
   }
 
   function handlePointerMove(e: PointerEvent) {
     if (!dragState.current) return
     const delta = e.clientX - dragState.current.startX
-    if (Math.abs(delta) > 4) dragState.current.moved = true
+    if (Math.abs(delta) > 4) {
+      dragState.current.moved = true
+      // Si el dedo se mueve de verdad, esto es un swipe, no un long-press quieto —
+      // se cancela el temporizador para no abrir dos veces ni pelearse con el drag.
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current)
+        longPressTimerRef.current = null
+      }
+    }
     setDragOffset(delta)
   }
 
   function handlePointerUp() {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
     if (!dragState.current) return
-    const { moved, startedOnInteractive } = dragState.current
-    if (moved) {
+    const { moved } = dragState.current
+    const firedByLongPress = longPressFiredRef.current
+    longPressFiredRef.current = false
+
+    if (firedByLongPress) {
+      // Ya se reveló por long-press durante el pointerdown — nada más que hacer.
+    } else if (moved) {
       const base = open ? -ACTION_WIDTH : 0
       const finalX = Math.min(0, Math.max(-ACTION_WIDTH, base + dragOffset))
       setOpen(finalX < -ACTION_WIDTH / 2)
@@ -103,11 +148,9 @@ export function SwipeableRow({
       // cierra, hay que tocar otra vez (ya cerrada) para de verdad activarla.
       setOpen(false)
       suppressClickRef.current = true
-    } else if (!startedOnInteractive) {
-      // Un tap sobre un botón/input propio del contenido (cuadro del grid, "Registrar
-      // ahorro", etc.) no debe también abrir el panel de editar/eliminar.
-      setOpen((v) => !v)
     }
+    // Un tap corto y quieto (ni long-press ni drag) ya NO abre el panel — solo
+    // dispara la acción normal de la fila, sin interferir.
     setDragOffset(0)
     dragState.current = null
   }

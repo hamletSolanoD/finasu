@@ -25,8 +25,6 @@ function OtherMonths() {
     .filter((m) => !excluded.has(m))
     .sort((a, b) => b.localeCompare(a))
 
-  const spendByCategory = computeMonthlySpendByCategory(expenses, items)
-
   function toggle(monthKey: string) {
     setExpanded((prev) => {
       const next = new Set(prev)
@@ -70,7 +68,7 @@ function OtherMonths() {
                       categories={categories.filter((c) => c.createdAt <= monthKeyEndTimestamp(monthKey))}
                       limits={limits}
                       incomes={incomes}
-                      spendByCategory={spendByCategory}
+                      spendByCategory={computeMonthlySpendByCategory(expenses, items, monthKey)}
                       expenses={expenses}
                       items={items}
                       showAiSuggestion={false}
