@@ -11,6 +11,11 @@ import { useModalBack } from '../lib/useModalBack'
 import type { CategoryLimit, Expense, ExpenseCategory, ExpenseItem, MonthlyIncome } from '../lib/types'
 import { formatCurrency } from '../lib/units'
 
+/** Nota chica bajo el campo cuando ya hay un valor guardado pero el mes sigue sin cerrar. */
+function DraftHint() {
+  return <p className="mt-1 text-xs text-black/40">✓ Guardado como borrador — puedes seguir editándolo.</p>
+}
+
 function BudgetProgress({ spent, limit }: { spent: number; limit: number | null }) {
   if (limit === null) {
     return (
@@ -39,21 +44,27 @@ function BudgetProgress({ spent, limit }: { spent: number; limit: number | null 
   )
 }
 
-/** Ingreso del mes: igual que los límites, un evento único — se guarda una vez y queda fijo. */
+/**
+ * Ingreso del mes. Mientras el mes no se guarde de forma definitiva
+ * (finalized=false, ver MonthFinalization) sigue siendo un borrador editable
+ * aunque ya tenga un valor guardado — así se puede corregir un error sin
+ * esperar al mes siguiente.
+ */
 function IncomeRow({
   incomeRecord,
   monthKey,
   editable,
+  finalized,
 }: {
   incomeRecord: MonthlyIncome | null
   monthKey: string
   editable: boolean
+  finalized: boolean
 }) {
-  const [value, setValue] = useState('')
+  const [value, setValue] = useState(() => (incomeRecord?.income != null ? String(incomeRecord.income) : ''))
   const [error, setError] = useState('')
-  const confirm = useConfirm()
 
-  if (incomeRecord || !editable) {
+  if ((incomeRecord && finalized) || !editable) {
     return (
       <p className="text-sm text-black/60">
         Ingreso de este mes:{' '}
@@ -72,18 +83,11 @@ function IncomeRow({
       setError('Ingresa un monto válido')
       return
     }
-    const ok = await confirm({
-      title: parsed === null ? '¿Guardar este mes sin declarar ingreso?' : `¿Guardar ${formatCurrency(parsed)} de ingreso?`,
-      body: 'Una vez guardado no lo vas a poder editar hasta el próximo mes.',
-      confirmLabel: 'Guardar',
-      danger: false,
-    })
-    if (!ok) return
-    await db.monthlyIncomes.add({
-      id: crypto.randomUUID(),
+    await db.monthlyIncomes.put({
+      id: incomeRecord?.id ?? crypto.randomUUID(),
       monthKey,
       income: parsed,
-      setAt: Date.now(),
+      setAt: incomeRecord?.setAt ?? Date.now(),
     })
     // Con el ingreso declarado, el límite de IVA del mes se pone solo
     // (nunca pisa uno que ya exista, así que ponerlo a mano antes sigue valiendo).
@@ -112,13 +116,18 @@ function IncomeRow({
           onClick={handleSave}
           className="rounded-full bg-sage px-4 py-1.5 text-sm font-semibold text-black/80"
         >
-          Guardar ingreso
+          {incomeRecord ? 'Actualizar ingreso' : 'Guardar ingreso'}
         </button>
       </div>
       {error && <p className="mt-2 text-xs text-red-700">{error}</p>}
-      <p className="mt-1 text-xs text-black/40">
-        Se guarda una sola vez para este mes — déjalo vacío si no quieres declarar ingreso.
-      </p>
+      {incomeRecord ? (
+        <DraftHint />
+      ) : (
+        <p className="mt-1 text-xs text-black/40">
+          Puedes dejarlo vacío si no quieres declarar ingreso — se puede corregir mientras no guardes los cambios
+          definitivamente.
+        </p>
+      )}
     </div>
   )
 }
@@ -196,9 +205,11 @@ function CategoryExpensesModal({
 }
 
 /**
- * El límite de cada categoría es un evento único por mes: una vez guardado
- * queda fijo (solo lectura + barra de avance) hasta que empiece el mes
- * siguiente y haya que volver a establecerlo.
+ * El límite de cada categoría es un borrador editable — se puede guardar,
+ * revisar y corregir tantas veces como haga falta — hasta que se guarda el
+ * mes completo de forma definitiva (finalized=true, ver el botón al final de
+ * MonthLimitsSection). Después de eso queda fijo (solo lectura + barra de
+ * avance) hasta el mes siguiente.
  */
 function CategoryLimitRow({
   category,
@@ -209,6 +220,7 @@ function CategoryLimitRow({
   monthKey,
   highlighted,
   editable,
+  finalized,
   expenses,
   items,
   onDeleteCategory,
@@ -221,18 +233,18 @@ function CategoryLimitRow({
   monthKey: string
   highlighted: boolean
   editable: boolean
+  finalized: boolean
   expenses: Expense[]
   items: ExpenseItem[]
   onDeleteCategory?: (categoryId: string) => void
 }) {
-  const [value, setValue] = useState('')
+  const [value, setValue] = useState(() => (limit?.limit != null ? String(limit.limit) : ''))
   const [error, setError] = useState('')
   const [showExpenses, setShowExpenses] = useState(false)
-  const confirm = useConfirm()
   const domId = `cat-${category.id}`
   const highlightRing = highlighted ? 'ring-2 ring-sky ring-offset-2 ring-offset-cream' : ''
 
-  if (limit || !editable) {
+  if ((limit && finalized) || !editable) {
     const expenseIdsThisMonth = new Set(
       expenses.filter((expense) => expense.fecha.slice(0, 7) === monthKey).map((expense) => expense.id),
     )
@@ -278,28 +290,21 @@ function CategoryLimitRow({
       return
     }
     if (parsed !== null && income !== null) {
-      const disponible = income - committed
+      // `committed` incluye lo que YA tenía guardado esta misma categoría —
+      // hay que restarlo antes de comparar, si no, editar un límite ya
+      // guardado se compara contra sí mismo y casi siempre "no alcanza".
+      const disponible = income - committed + (limit?.limit ?? 0)
       if (parsed > disponible) {
         setError(`Eso pasa tu ingreso disponible — te quedan ${formatCurrency(Math.max(0, disponible))}`)
         return
       }
     }
-    const ok = await confirm({
-      title:
-        parsed === null
-          ? `¿Dejar ${category.name} sin límite este mes?`
-          : `¿Guardar límite de ${formatCurrency(parsed)} para ${category.name}?`,
-      body: 'Una vez guardado no lo vas a poder editar hasta el próximo mes.',
-      confirmLabel: 'Guardar',
-      danger: false,
-    })
-    if (!ok) return
-    await db.categoryLimits.add({
-      id: crypto.randomUUID(),
+    await db.categoryLimits.put({
+      id: limit?.id ?? crypto.randomUUID(),
       categoryId: category.id,
       monthKey,
       limit: parsed,
-      setAt: Date.now(),
+      setAt: limit?.setAt ?? Date.now(),
     })
   }
 
@@ -328,13 +333,17 @@ function CategoryLimitRow({
           onClick={handleSave}
           className="rounded-full bg-sage px-4 py-1.5 text-sm font-semibold text-black/80"
         >
-          Guardar límite
+          {limit ? 'Actualizar límite' : 'Guardar límite'}
         </button>
       </div>
       {error && <p className="mt-2 text-xs text-red-700">{error}</p>}
-      <p className="mt-1 text-xs text-black/40">
-        Se guarda una sola vez para este mes — déjalo vacío para no ponerle límite.
-      </p>
+      {limit ? (
+        <DraftHint />
+      ) : (
+        <p className="mt-1 text-xs text-black/40">
+          Déjalo vacío para no ponerle límite — se puede corregir mientras no guardes los cambios definitivamente.
+        </p>
+      )}
     </div>
   )
 
@@ -372,7 +381,9 @@ export function MonthLimitsSection({
   showAiSuggestion,
   highlightedCategoryId = null,
   editable = true,
+  finalized = true,
   onDeleteCategory,
+  onFinalize,
 }: {
   title: string
   monthKey: string
@@ -385,20 +396,46 @@ export function MonthLimitsSection({
   showAiSuggestion: boolean
   highlightedCategoryId?: string | null
   editable?: boolean
+  /** true = el mes ya se guardó de forma definitiva (ver MonthFinalization) — todo queda de solo lectura.
+   * Default true para no romper usos que no pasan esta prop (ej. si algún día se olvida) — más vale mostrar
+   * de más como "cerrado" que dejar editar algo que no debería. */
+  finalized?: boolean
   onDeleteCategory?: (categoryId: string) => void
+  /** Requerido cuando editable && !finalized — guarda la fila en monthFinalizations. */
+  onFinalize?: () => Promise<void>
 }) {
+  const confirm = useConfirm()
   const committed = committedForMonth(limits, monthKey)
   const incomeRecord = getIncomeForMonth(monthKey, incomes)
   const income = incomeRecord?.income ?? null
   const remaining = income !== null ? income - committed : null
   const allSet = allLimitsSetForMonth(categories, limits, monthKey)
+  const missingCount = categories.filter((c) => getLimitForMonth(c.id, monthKey, limits) === null).length
+  const isDraft = editable && !finalized
+
+  async function handleFinalizeClick() {
+    if (!onFinalize) return
+    const complete = incomeRecord !== null && missingCount === 0
+    const ok = await confirm({
+      title: complete
+        ? `¿Guardar los límites de ${title} de forma definitiva?`
+        : `Aún te faltan ${missingCount} categoría${missingCount === 1 ? '' : 's'} por definir`,
+      body: complete
+        ? 'Ya no vas a poder editar el ingreso ni los límites de este mes.'
+        : 'Las que falten se quedan sin límite este mes, y ya no vas a poder editar nada de esto una vez guardado. ¿Guardar de todos modos?',
+      confirmLabel: 'Guardar definitivamente',
+      danger: !complete,
+    })
+    if (!ok) return
+    await onFinalize()
+  }
 
   return (
     <section>
       <h2 className="font-display font-semibold">{title}</h2>
 
       <div className="mt-2">
-        <IncomeRow incomeRecord={incomeRecord} monthKey={monthKey} editable={editable} />
+        <IncomeRow incomeRecord={incomeRecord} monthKey={monthKey} editable={editable} finalized={finalized} />
       </div>
 
       {income !== null && remaining !== null && (
@@ -431,12 +468,29 @@ export function MonthLimitsSection({
             monthKey={monthKey}
             highlighted={category.id === highlightedCategoryId}
             editable={editable}
+            finalized={finalized}
             expenses={expenses}
             items={items}
             onDeleteCategory={onDeleteCategory}
           />
         ))}
       </ul>
+
+      {isDraft && onFinalize && (
+        <div className="mt-4 rounded-2xl border border-dashed border-black/15 bg-white/40 p-4">
+          <p className="text-sm text-black/60">
+            Mientras no guardes los cambios definitivamente, el ingreso y cada límite siguen siendo un borrador — los
+            puedes corregir cuantas veces haga falta.
+          </p>
+          <button
+            type="button"
+            onClick={handleFinalizeClick}
+            className="mt-3 rounded-full bg-sage px-5 py-2 text-sm font-semibold text-black/80 transition hover:brightness-95"
+          >
+            🔒 Guardar cambios definitivamente
+          </button>
+        </div>
+      )}
     </section>
   )
 }

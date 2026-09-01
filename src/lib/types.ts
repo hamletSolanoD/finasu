@@ -231,6 +231,19 @@ export interface CreditCard {
   archivedAt?: number
 }
 
+/**
+ * Marca que el ingreso y los límites de categoría de `monthKey` quedaron
+ * cerrados definitivamente. Mientras no exista una fila para un mes, su
+ * ingreso y cada límite de categoría siguen siendo un borrador editable
+ * (aunque ya se hayan guardado) — la pantalla de "Categorías y límites" los
+ * muestra como campos editables, no de solo lectura. `monthKey` es la propia
+ * llave primaria (un mes solo se puede cerrar una vez).
+ */
+export interface MonthFinalization {
+  monthKey: string
+  finalizedAt: number
+}
+
 /** Un abono registrado a una tarjeta — se descuenta de la deuda al momento de registrarlo. */
 export interface CreditCardPayment {
   id: string

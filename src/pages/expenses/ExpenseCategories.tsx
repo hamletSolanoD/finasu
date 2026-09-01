@@ -7,9 +7,11 @@ import { HomeStatusPanel } from '../../components/HomeStatusPanel'
 import { MonthLimitsSection, monthFullySet } from '../../components/MonthLimitsSection'
 import { computeMonthlySpendByCategory } from '../../lib/budget'
 import { findExistingCategoryId } from '../../lib/categories'
+import { getIncomeForMonth, isMonthFinalized } from '../../lib/categoryLimits'
 import { db } from '../../lib/db'
 import { ICON_PALETTE } from '../../lib/expenseCategories'
 import { formatMonthLabel, isLastDayOfCurrentMonth, monthKeyWithOffset } from '../../lib/summary'
+import { useMonthDraftGuard } from '../../lib/useMonthDraftGuard'
 
 function ExpenseCategories() {
   const categories = useLiveQuery(() => db.expenseCategories.orderBy('name').toArray(), [])
@@ -17,6 +19,7 @@ function ExpenseCategories() {
   const incomes = useLiveQuery(() => db.monthlyIncomes.toArray(), [])
   const expenses = useLiveQuery(() => db.expenses.toArray(), [])
   const items = useLiveQuery(() => db.expenseItems.toArray(), [])
+  const finalizations = useLiveQuery(() => db.monthFinalizations.toArray(), [])
   const location = useLocation()
   const confirm = useConfirm()
 
@@ -49,13 +52,35 @@ function ExpenseCategories() {
     return () => clearTimeout(timer)
   }, [fromNotification, categoriesReady])
 
-  if (!categories || !limits || !incomes || !expenses || !items) return null
-
+  // dataReady y los valores de respaldo (?? []) son para poder llamar a
+  // useMonthDraftGuard SIEMPRE (reglas de hooks: nunca después de un return
+  // condicional) aunque los datos todavía no hayan cargado — mientras no
+  // estén listos, finalized se fuerza a true para que el guard quede inactivo
+  // (no hay nada que proteger todavía) y no proteja con datos a medias.
+  const dataReady = Boolean(categories && limits && incomes && expenses && items && finalizations)
   const currentMonthKey = monthKeyWithOffset(0)
+  const finalized = dataReady ? isMonthFinalized(currentMonthKey, finalizations!) : true
+  const incomeRecord = dataReady ? getIncomeForMonth(currentMonthKey, incomes!) : null
+
+  async function handleFinalize() {
+    await db.monthFinalizations.put({ monthKey: currentMonthKey, finalizedAt: Date.now() })
+  }
+
+  const { attemptLeave } = useMonthDraftGuard({
+    monthKey: currentMonthKey,
+    categories: categories ?? [],
+    limits: limits ?? [],
+    incomeRecord,
+    finalized,
+    onFinalize: handleFinalize,
+  })
+
+  if (!dataReady) return null
+
   const nextMonthKey = monthKeyWithOffset(1)
   const advanceNotice = isLastDayOfCurrentMonth()
-  const nextMonthReady = monthFullySet(categories, limits, incomes, nextMonthKey)
-  const spendByCategory = computeMonthlySpendByCategory(expenses, items, currentMonthKey)
+  const nextMonthReady = monthFullySet(categories!, limits!, incomes!, nextMonthKey)
+  const spendByCategory = computeMonthlySpendByCategory(expenses!, items!, currentMonthKey)
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault()
@@ -85,13 +110,15 @@ function ExpenseCategories() {
 
   return (
     <div className="mx-auto max-w-lg">
-      <BackLink to="/gastos">← Gastos</BackLink>
+      <BackLink to="/gastos" onBeforeLeave={attemptLeave}>
+        ← Gastos
+      </BackLink>
 
       <p className="mt-4 font-display text-sm font-semibold uppercase tracking-[0.2em] text-black/40">🧾 Gastos</p>
       <h1 className="mt-2 font-display text-3xl font-semibold">🏷️ Categorías y límites</h1>
       <p className="mt-2 text-black/60">
-        Cada mes estableces tu ingreso y el límite de cada categoría una sola vez — en cuanto los guardas quedan
-        fijos hasta el mes siguiente.
+        Cada mes estableces tu ingreso y el límite de cada categoría — puedes editarlos las veces que quieras hasta
+        que guardes los cambios de forma definitiva.
       </p>
 
       <HomeStatusPanel />
@@ -115,14 +142,16 @@ function ExpenseCategories() {
         <MonthLimitsSection
           title={formatMonthLabel(currentMonthKey)}
           monthKey={currentMonthKey}
-          categories={categories}
-          limits={limits}
-          incomes={incomes}
+          categories={categories!}
+          limits={limits!}
+          incomes={incomes!}
           spendByCategory={spendByCategory}
-          expenses={expenses}
-          items={items}
+          expenses={expenses!}
+          items={items!}
           showAiSuggestion
           highlightedCategoryId={highlightedCategoryId}
+          finalized={finalized}
+          onFinalize={handleFinalize}
           onDeleteCategory={handleDeleteCategory}
         />
       </div>

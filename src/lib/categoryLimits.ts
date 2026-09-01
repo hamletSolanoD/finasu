@@ -1,4 +1,4 @@
-import type { CategoryLimit, ExpenseCategory, MonthlyIncome } from './types'
+import type { CategoryLimit, ExpenseCategory, MonthFinalization, MonthlyIncome } from './types'
 
 /** El límite ya establecido para esa categoría en ese mes, o null si todavía no se decide. */
 export function getLimitForMonth(
@@ -29,4 +29,13 @@ export function committedForMonth(limits: CategoryLimit[], monthKey: string): nu
 /** El ingreso ya establecido para ese mes, o null si todavía no se decide. */
 export function getIncomeForMonth(monthKey: string, incomes: MonthlyIncome[]): MonthlyIncome | null {
   return incomes.find((i) => i.monthKey === monthKey) ?? null
+}
+
+/**
+ * true si ese mes ya se guardó de forma definitiva (ver MonthFinalization).
+ * Mientras sea false, el ingreso y cada límite de categoría de ese mes siguen
+ * siendo un borrador editable aunque ya tengan una fila guardada.
+ */
+export function isMonthFinalized(monthKey: string, finalizations: Pick<MonthFinalization, 'monthKey'>[]): boolean {
+  return finalizations.some((f) => f.monthKey === monthKey)
 }

@@ -15,6 +15,7 @@ import type {
   ExpenseCategory,
   ExpenseItem,
   FutureExpense,
+  MonthFinalization,
   MonthlyIncome,
   PriceEntry,
   Product,
@@ -62,6 +63,7 @@ class FinasuDB extends Dexie {
   stores!: Table<Store, string>
   creditCards!: Table<CreditCard, string>
   creditCardPayments!: Table<CreditCardPayment, string>
+  monthFinalizations!: Table<MonthFinalization, string>
 
   constructor() {
     super('finasu', { addons: [dexieCloud] })
@@ -606,6 +608,57 @@ class FinasuDB extends Dexie {
       stores: 'id, name',
       creditCards: 'id, name',
       creditCardPayments: 'id, cardId, date',
+    })
+
+    // v22: el ingreso y los límites de categoría de un mes ya no quedan
+    // fijos apenas se guarda cada uno — siguen siendo borrador (editable,
+    // se puede corregir un error) hasta que se guarda el mes completo de
+    // forma explícita, lo que crea una fila aquí. monthKey es su propia
+    // llave primaria.
+    this.version(22).stores({
+      products: 'id, name, categoryId',
+      priceEntries: 'id, productId, store',
+      categories: 'id, name',
+      expenses: 'id, status, capturedAt',
+      expenseItems: 'id, expenseId, categoryId',
+      expenseCategories: 'id, name',
+      categoryLimits: 'id, categoryId, monthKey',
+      savingsGoals: 'id, name',
+      savingsDeposits: 'id, goalId, periodIndex',
+      futureExpenses: 'id, fechaObjetivo',
+      settings: 'id',
+      monthlyIncomes: 'id, monthKey',
+      savingsGoalDeletions: 'id, deletedAt',
+      projects: 'id, name',
+      projectItems: 'id, projectId, purchased',
+      projectPriceEntries: 'id, projectItemId, store',
+      stores: 'id, name',
+      creditCards: 'id, name',
+      creditCardPayments: 'id, cardId, date',
+      monthFinalizations: 'monthKey',
+    }).upgrade(async (tx) => {
+      // Todo el ingreso/límites que ya existían antes de v22 se guardó bajo
+      // las reglas viejas (inmutable apenas se guardaba uno), así que los
+      // meses YA PASADOS se marcan cerrados desde ya — conservan su estado de
+      // solo-lectura de siempre. El mes actual (y cualquier mes futuro que ya
+      // se haya empezado a preparar, ej. "adelantar" el siguiente) se deja
+      // SIN cerrar a propósito: es el único que de verdad estaba a medias en
+      // el momento de este cambio, y debe seguir editable bajo las reglas
+      // nuevas (para poder corregir algo ya guardado, por ejemplo).
+      const now = new Date()
+      const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+
+      const monthKeys = new Set<string>()
+      const incomes = await tx.table('monthlyIncomes').toArray()
+      const limits = await tx.table('categoryLimits').toArray()
+      for (const row of incomes) monthKeys.add(row.monthKey)
+      for (const row of limits) monthKeys.add(row.monthKey)
+
+      const finalizedAt = Date.now()
+      for (const monthKey of monthKeys) {
+        if (monthKey >= currentMonthKey) continue
+        await tx.table('monthFinalizations').put({ monthKey, finalizedAt })
+      }
     })
 
     this.cloud.configure({
