@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { BackLink } from '../../components/BackLink'
 import { db } from '../../lib/db'
 
 function AddProject() {
@@ -8,6 +9,7 @@ function AddProject() {
   const [name, setName] = useState('')
   const [budget, setBudget] = useState<number | ''>('')
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
   const canSave = name.trim().length > 0
 
@@ -15,22 +17,33 @@ function AddProject() {
     e.preventDefault()
     if (!canSave) return
     setSaving(true)
+    setError('')
 
-    const id = crypto.randomUUID()
+    try {
+      const id = crypto.randomUUID()
 
-    await db.projects.add({
-      id,
-      name: name.trim(),
-      budget: budget === '' ? null : Number(budget),
-      createdAt: Date.now(),
-    })
+      await db.projects.add({
+        id,
+        name: name.trim(),
+        budget: budget === '' ? null : Number(budget),
+        createdAt: Date.now(),
+      })
 
-    navigate(`/proyectos/${id}`)
+      // replace: true en vez de un push normal — si no, "/proyectos/nuevo" se
+      // queda como una entrada muerta en el historial, y el atrás del
+      // teléfono te devuelve al formulario vacío en vez de a la lista.
+      navigate(`/proyectos/${id}`, { replace: true })
+    } catch {
+      setError('No se pudo guardar el proyecto. Intenta de nuevo.')
+      setSaving(false)
+    }
   }
 
   return (
     <div className="mx-auto max-w-lg">
-      <p className="font-display text-sm font-semibold uppercase tracking-[0.2em] text-black/40">
+      <BackLink to="/proyectos">← Proyectos</BackLink>
+
+      <p className="mt-4 font-display text-sm font-semibold uppercase tracking-[0.2em] text-black/40">
         🛠️ Proyectos
       </p>
       <h1 className="mt-2 font-display text-3xl font-semibold">Nuevo proyecto</h1>
@@ -61,6 +74,8 @@ function AddProject() {
             className="rounded-xl border border-black/15 bg-white/70 px-3 py-2 text-black/80"
           />
         </label>
+
+        {error && <p className="text-sm text-red-700">{error}</p>}
 
         <button
           type="submit"
