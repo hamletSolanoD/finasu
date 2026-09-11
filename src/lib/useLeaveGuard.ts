@@ -17,18 +17,24 @@ import { useEffect, useRef } from 'react'
  * nada async) la URL nunca cambia de verdad — la pantalla sigue montada y el
  * confirm se puede mostrar con tranquilidad.
  *
- * Por qué onLeave navega en vez de repetir el back(): onAttemptLeave suele
- * mostrar su propio confirm (ConfirmModal), que por defecto TAMBIÉN usa
- * useModalBack y empuja/limpia su PROPIA entrada de historial al
- * abrirse/cerrarse — encima de la entrada de guardia (mismo idx, apilada).
- * Intentar "reproducir" el back original con otro history.back() justo
- * cuando el modal también está limpiando el suyo corre en carrera con esa
- * limpieza (dos history.back() casi simultáneos, orden no garantizado) y
- * puede dejar a la pantalla sin salir de verdad pese a haber confirmado
- * "salir". Por eso onLeave navega directo (sin depender del orden), Y el
- * confirm que se muestre desde onAttemptLeave debería pasar
- * `skipHistoryBack: true` (ver ConfirmModal) para no competir en primer
- * lugar — las dos cosas juntas, no una sola, es lo que lo deja robusto.
+ * Por qué se ignora un popstate que aterriza TODAVÍA sobre nuestra propia
+ * marca de guardia: mientras esta pantalla está activa, es normal que se
+ * abran OTROS modales encima (ej. el confirm de "guardar cambios
+ * definitivamente", o cualquier otro que no pase skipHistoryBack) — cada uno
+ * empuja y limpia su PROPIA entrada de historial (useModalBack) al
+ * abrirse/cerrarse. Si NO se ignora, el popstate que dispara la limpieza de
+ * ESE OTRO modal se malinterpreta aquí como "el usuario quiere salir de la
+ * pantalla" y aparece un aviso fantasma de "¿seguro que quieres salir?" en
+ * medio de un flujo que no tiene nada que ver. La regla es simple: si
+ * después del pop la marca `__finasuLeaveGuard` sigue presente, lo que se
+ * cerró fue algo apilado ENCIMA — no se perdió nuestra propia entrada, así
+ * que no hay nada real que preguntar.
+ *
+ * Por qué onLeave navega en vez de repetir el back(): un back() de verdad,
+ * justo cuando además puede haber otro history.back() de un modal cerrándose
+ * al mismo tiempo, corre en carrera (orden no garantizado) y puede dejar a
+ * la pantalla sin salir de verdad pese a haber confirmado "salir". Navegar
+ * directo (normalmente a Inicio) evita la carrera por completo.
  */
 export function useLeaveGuard(
   active: boolean,
@@ -45,6 +51,8 @@ export function useLeaveGuard(
     window.history.pushState({ ...window.history.state, __finasuLeaveGuard: true }, '')
 
     async function handlePopstate() {
+      if (window.history.state?.__finasuLeaveGuard) return
+
       window.history.pushState({ ...window.history.state, __finasuLeaveGuard: true }, '')
       const shouldLeave = await onAttemptLeaveRef.current()
       if (shouldLeave) onLeaveRef.current()

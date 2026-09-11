@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type MouseEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useConfirm } from './ConfirmModal'
 import { SwipeableRow } from './SwipeableRow'
@@ -49,7 +49,10 @@ function BudgetProgress({ spent, limit }: { spent: number; limit: number | null 
  * Ingreso del mes. Mientras el mes no se guarde de forma definitiva
  * (finalized=false, ver MonthFinalization) sigue siendo un borrador editable
  * aunque ya tenga un valor guardado — así se puede corregir un error sin
- * esperar al mes siguiente.
+ * esperar al mes siguiente. Incluso ya cerrado, un botón "Editar" (con
+ * confirmación) lo vuelve a abrir — el bloqueo es para no "hacer trampa"
+ * ajustando el presupuesto después de gastar, no para dejar un error de
+ * captura sin arreglo.
  */
 function IncomeRow({
   incomeRecord,
@@ -64,14 +67,35 @@ function IncomeRow({
 }) {
   const [value, setValue] = useState(() => (incomeRecord?.income != null ? String(incomeRecord.income) : ''))
   const [error, setError] = useState('')
+  const [forceEdit, setForceEdit] = useState(false)
+  const confirm = useConfirm()
 
-  if ((incomeRecord && finalized) || !editable) {
+  async function handleUnlock() {
+    const ok = await confirm({
+      title: '¿Editar el ingreso de un mes ya cerrado?',
+      body: 'Esto es para corregir un error de captura — no para ajustar tu presupuesto después de haber gastado. Se guarda directo, sin otro paso de confirmación.',
+      confirmLabel: 'Sí, editar',
+      danger: true,
+    })
+    if (ok) setForceEdit(true)
+  }
+
+  if ((incomeRecord && finalized && !forceEdit) || !editable) {
     return (
       <p className="text-sm text-black/60">
         Ingreso de este mes:{' '}
         <span className="font-semibold text-black/80">
           {incomeRecord && incomeRecord.income !== null ? formatCurrency(incomeRecord.income) : 'sin declarar'}
         </span>
+        {editable && finalized && (
+          <button
+            type="button"
+            onClick={handleUnlock}
+            className="ml-2 text-xs font-medium text-black/40 underline hover:text-black/60"
+          >
+            ✏️ Editar
+          </button>
+        )}
       </p>
     )
   }
@@ -134,7 +158,11 @@ function IncomeRow({
         </button>
       </div>
       {error && <p className="mt-2 text-xs text-red-700">{error}</p>}
-      {incomeRecord ? (
+      {finalized && forceEdit ? (
+        <p className="mt-1 text-xs text-amber-700">
+          Este mes ya estaba cerrado — al guardar, el cambio queda de una vez, sin volver a bloquearse solo.
+        </p>
+      ) : incomeRecord ? (
         <DraftHint />
       ) : (
         <p className="mt-1 text-xs text-black/40">
@@ -255,10 +283,23 @@ function CategoryLimitRow({
   const [value, setValue] = useState(() => (limit?.limit != null ? String(limit.limit) : ''))
   const [error, setError] = useState('')
   const [showExpenses, setShowExpenses] = useState(false)
+  const [forceEdit, setForceEdit] = useState(false)
+  const confirm = useConfirm()
   const domId = `cat-${category.id}`
   const highlightRing = highlighted ? 'ring-2 ring-sky ring-offset-2 ring-offset-cream' : ''
 
-  if ((limit && finalized) || !editable) {
+  async function handleUnlock(e: MouseEvent) {
+    e.stopPropagation()
+    const ok = await confirm({
+      title: `¿Editar el límite de ${category.name} de un mes ya cerrado?`,
+      body: 'Esto es para corregir un error de captura — no para ajustar tu presupuesto después de haber gastado. Se guarda directo, sin otro paso de confirmación.',
+      confirmLabel: 'Sí, editar',
+      danger: true,
+    })
+    if (ok) setForceEdit(true)
+  }
+
+  if ((limit && finalized && !forceEdit) || !editable) {
     const expenseIdsThisMonth = new Set(
       expenses.filter((expense) => expense.fecha.slice(0, 7) === monthKey).map((expense) => expense.id),
     )
@@ -277,8 +318,17 @@ function CategoryLimitRow({
             <span className="font-medium">
               {category.icon} {category.name}
             </span>
-            <span className="text-sm text-black/50">
+            <span className="flex items-center gap-2 text-sm text-black/50">
               {limit ? (limit.limit !== null ? `${formatCurrency(limit.limit)}/mes` : 'Sin límite') : 'Sin definir'}
+              {editable && finalized && (
+                <button
+                  type="button"
+                  onClick={handleUnlock}
+                  className="text-xs font-medium text-black/40 underline hover:text-black/60"
+                >
+                  ✏️ Editar
+                </button>
+              )}
             </span>
           </div>
           <BudgetProgress spent={spent} limit={limit?.limit ?? null} />
@@ -364,7 +414,11 @@ function CategoryLimitRow({
         </button>
       </div>
       {error && <p className="mt-2 text-xs text-red-700">{error}</p>}
-      {limit ? (
+      {finalized && forceEdit ? (
+        <p className="mt-1 text-xs text-amber-700">
+          Este mes ya estaba cerrado — al guardar, el cambio queda de una vez, sin volver a bloquearse solo.
+        </p>
+      ) : limit ? (
         <DraftHint />
       ) : (
         <p className="mt-1 text-xs text-black/40">
@@ -484,8 +538,8 @@ export function MonthLimitsSection({
         ? `¿Guardar los límites de ${title} de forma definitiva?`
         : `Aún te faltan ${missingCount} categoría${missingCount === 1 ? '' : 's'} por definir`,
       body: complete
-        ? 'Ya no vas a poder editar el ingreso ni los límites de este mes.'
-        : 'Las que falten se quedan sin límite este mes, y ya no vas a poder editar nada de esto una vez guardado. ¿Guardar de todos modos?',
+        ? 'El ingreso y los límites quedan fijos — si necesitas corregir algo después, vas a poder, pero pidiendo confirmar cada vez.'
+        : 'Las que falten se quedan sin límite este mes. ¿Guardar de todos modos?',
       confirmLabel: 'Guardar definitivamente',
       danger: !complete,
     })
