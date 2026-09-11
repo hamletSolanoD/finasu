@@ -86,7 +86,7 @@ export function displayUnitPrice(
 }
 
 export function formatCurrency(value: number): string {
-  return `$${value.toFixed(2)}`
+  return `$${value.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 /** Precios por gramo/ml son muy pequeños; se muestran con más decimales que una moneda normal. */

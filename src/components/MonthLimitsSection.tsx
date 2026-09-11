@@ -1,6 +1,7 @@
 import { useState, type MouseEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useConfirm } from './ConfirmModal'
+import { MoneyInput } from './MoneyInput'
 import { SwipeableRow } from './SwipeableRow'
 import { computeBudgetState } from '../lib/budget'
 import { allLimitsSetForMonth, committedForMonth, getIncomeForMonth, getLimitForMonth } from '../lib/categoryLimits'
@@ -136,13 +137,10 @@ function IncomeRow({
       <span className="font-medium">💵 Ingreso de este mes</span>
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <span className="text-sm text-black/50">$</span>
-        <input
-          type="number"
-          min="0"
-          step="any"
+        <MoneyInput
           value={value}
-          onChange={(e) => {
-            setValue(e.target.value)
+          onChange={(v) => {
+            setValue(v)
             setError('')
           }}
           onFocus={(e) => e.target.select()}
@@ -391,13 +389,10 @@ function CategoryLimitRow({
       </span>
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <span className="text-sm text-black/50">$</span>
-        <input
-          type="number"
-          min="0"
-          step="any"
+        <MoneyInput
           value={value}
-          onChange={(e) => {
-            setValue(e.target.value)
+          onChange={(v) => {
+            setValue(v)
             setError('')
           }}
           onFocus={(e) => e.target.select()}
@@ -554,6 +549,10 @@ export function MonthLimitsSection({
       <div className="mt-2">
         <IncomeRow incomeRecord={incomeRecord} monthKey={monthKey} editable={editable} finalized={finalized} />
       </div>
+
+      <p className="mt-2 text-sm text-black/60">
+        Suma de tus límites: <span className="font-semibold text-black/80">{formatCurrency(committed)}</span>
+      </p>
 
       {income !== null && remaining !== null && (
         <div className="mt-2 rounded-2xl border border-black/10 bg-white/50 p-4">

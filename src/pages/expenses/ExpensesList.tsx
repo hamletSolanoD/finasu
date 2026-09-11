@@ -98,10 +98,16 @@ function ExpensesList() {
 
   // Los tickets de un mes ya cerrado (ver MonthFinalization) se esconden de
   // aquí — igual que los límites, viven de solo lectura en "Otros meses"
-  // para no estorbar entre lo del mes en curso.
-  const activeExpenses = (expenses ?? []).filter(
-    (e) => !isMonthFinalized(e.fecha.slice(0, 7), finalizations ?? []),
-  )
+  // para no estorbar entre lo del mes en curso. EXCEPCIÓN: el mes real en
+  // curso (por fecha de calendario) se queda visible aquí aunque ya se haya
+  // cerrado — cerrar temprano (ej. para corregir el ingreso) no debe hacer
+  // desaparecer los tickets que todavía se siguen agregando hasta que de
+  // verdad cambie el mes.
+  const currentMonthKey = monthKeyWithOffset(0)
+  const activeExpenses = (expenses ?? []).filter((e) => {
+    const monthKey = e.fecha.slice(0, 7)
+    return monthKey === currentMonthKey || !isMonthFinalized(monthKey, finalizations ?? [])
+  })
   const hiddenCount = (expenses ?? []).length - activeExpenses.length
 
   const filtered = activeExpenses.filter((e) => {
