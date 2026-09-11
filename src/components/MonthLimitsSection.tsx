@@ -84,12 +84,24 @@ function IncomeRow({
       setError('Ingresa un monto válido')
       return
     }
+    const id = incomeRecord?.id ?? crypto.randomUUID()
     await db.monthlyIncomes.put({
-      id: incomeRecord?.id ?? crypto.randomUUID(),
+      id,
       monthKey,
       income: parsed,
-      setAt: incomeRecord?.setAt ?? Date.now(),
+      // Siempre Date.now(), nunca reusar el setAt viejo al corregir: es lo
+      // que usa getIncomeForMonth para decidir cuál gana si por algún motivo
+      // quedó una fila duplicada de antes — si esta corrección no queda como
+      // la más reciente, un duplicado viejo podría seguir "ganando" y la
+      // corrección se vería como si no hubiera pasado nada.
+      setAt: Date.now(),
     })
+    // Limpieza defensiva: si por algo (ej. datos de antes del arreglo de
+    // arriba) quedó más de una fila de ingreso para este mes, se borran las
+    // demás — solo debe existir una.
+    const duplicates = await db.monthlyIncomes.where('monthKey').equals(monthKey).toArray()
+    const staleIds = duplicates.filter((d) => d.id !== id).map((d) => d.id)
+    if (staleIds.length > 0) await db.monthlyIncomes.bulkDelete(staleIds)
     // Con el ingreso declarado, el límite de IVA del mes se pone solo
     // (nunca pisa uno que ya exista, así que ponerlo a mano antes sigue valiendo).
     await autoSetIvaLimitForMonth(monthKey, parsed)
@@ -301,13 +313,25 @@ function CategoryLimitRow({
         return
       }
     }
+    const id = limit?.id ?? crypto.randomUUID()
     await db.categoryLimits.put({
-      id: limit?.id ?? crypto.randomUUID(),
+      id,
       categoryId: category.id,
       monthKey,
       limit: parsed,
-      setAt: limit?.setAt ?? Date.now(),
+      // Mismo motivo que en IncomeRow: siempre Date.now(), nunca reusar el
+      // setAt viejo — es lo que decide cuál fila gana si quedó un duplicado.
+      setAt: Date.now(),
     })
+    // Limpieza defensiva: si por algo quedó más de una fila de límite para
+    // esta categoría+mes, se borran las demás — solo debe existir una.
+    const duplicates = await db.categoryLimits
+      .where('monthKey')
+      .equals(monthKey)
+      .and((l) => l.categoryId === category.id)
+      .toArray()
+    const staleIds = duplicates.filter((d) => d.id !== id).map((d) => d.id)
+    if (staleIds.length > 0) await db.categoryLimits.bulkDelete(staleIds)
   }
 
   const content = (
