@@ -9,6 +9,7 @@ import { Dropdown } from '../../components/Dropdown'
 import { StorePicker } from '../../components/StorePicker'
 import { SwipeableRow } from '../../components/SwipeableRow'
 import { findExistingCategoryId } from '../../lib/categories'
+import { isMonthFinalized } from '../../lib/categoryLimits'
 import { CURRENCY_OPTIONS } from '../../lib/currency'
 import { db } from '../../lib/db'
 import { formatFechaLarga } from '../../lib/date'
@@ -18,6 +19,7 @@ import { ensureIvaCategory, looksLikeIva } from '../../lib/ivaCategory'
 import { smartBack } from '../../lib/navigationHistory'
 import { findExistingStoreId, matchStoreByMerchant } from '../../lib/stores'
 import { parseTicketLines } from '../../lib/ticketParser'
+import type { Expense, ExpenseCategory, ExpenseItem, Store } from '../../lib/types'
 import { formatCurrency } from '../../lib/units'
 import { useModalBack } from '../../lib/useModalBack'
 
@@ -26,6 +28,114 @@ interface DraftItem {
   nombre: string
   monto: string
   categoryId: string | null
+}
+
+/** Un ticket de un mes ya cerrado (ver MonthFinalization) — igual que un límite ya guardado, solo lectura. */
+function ReadOnlyExpenseDetail({
+  expense,
+  items,
+  categories,
+  stores,
+}: {
+  expense: Expense
+  items: ExpenseItem[]
+  categories: ExpenseCategory[]
+  stores: Store[]
+}) {
+  const [viewerOpen, setViewerOpen] = useState(false)
+  const [showOcrText, setShowOcrText] = useState(false)
+
+  useModalBack(viewerOpen, () => setViewerOpen(false))
+
+  const store = expense.storeId ? stores.find((s) => s.id === expense.storeId) : undefined
+  const total = items.reduce((sum, i) => sum + i.monto, 0)
+
+  return (
+    <div className="mx-auto max-w-lg">
+      <BackLink to="/gastos">← Gastos</BackLink>
+
+      <div className="mt-4 flex items-start gap-4">
+        {expense.image && (
+          <button type="button" onClick={() => setViewerOpen(true)} className="shrink-0 cursor-pointer">
+            <img src={expense.image} alt="Ticket" className="h-32 w-32 rounded-2xl object-cover" />
+          </button>
+        )}
+        <div className="min-w-0">
+          <h1 className="font-display text-2xl font-semibold">{formatFechaLarga(expense.fecha)}</h1>
+          <p className="mt-1 text-sm text-black/50">
+            {store ? `${store.icon} ${store.name}` : (expense.merchant ?? 'Sin tienda')}
+          </p>
+          <button
+            type="button"
+            onClick={() => setShowOcrText((v) => !v)}
+            className="mt-1 block text-xs text-black/40 underline hover:text-black/60"
+          >
+            {showOcrText ? 'Ocultar texto leído' : 'Ver texto leído (OCR)'}
+          </button>
+          <p className="mt-2 text-xs font-medium text-black/40">
+            🔒 Este mes ya se guardó definitivamente — el ticket queda de solo lectura.
+          </p>
+        </div>
+      </div>
+
+      {viewerOpen && expense.image && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+          onClick={() => setViewerOpen(false)}
+        >
+          <button
+            type="button"
+            onClick={() => setViewerOpen(false)}
+            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-xl text-white hover:bg-white/20"
+            aria-label="Cerrar"
+          >
+            ✕
+          </button>
+          <img src={expense.image} alt="Ticket" className="max-h-full max-w-full object-contain" />
+        </div>
+      )}
+
+      {showOcrText && (
+        <pre className="mt-4 max-h-48 overflow-auto whitespace-pre-wrap rounded-xl border border-black/10 bg-white/50 p-3 text-xs text-black/60">
+          {expense.ocrText || '(no se detectó texto legible)'}
+        </pre>
+      )}
+
+      <div className="mt-6">
+        <p className="mb-2 font-display font-semibold">Productos</p>
+        {items.length === 0 ? (
+          <p className="text-sm text-black/50">Este ticket no tiene productos registrados.</p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {items.map((item) => {
+              const category = categories.find((c) => c.id === item.categoryId)
+              return (
+                <li
+                  key={item.id}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-black/10 bg-white/50 p-3"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium">{item.nombre}</span>
+                    <span className="block text-xs text-black/50">
+                      {category ? `${category.icon} ${category.name}` : 'Sin categoría'}
+                    </span>
+                  </span>
+                  <span className="shrink-0 font-semibold">{formatCurrency(item.monto)}</span>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </div>
+
+      <div className="mt-6">
+        <p className="font-display font-semibold">Total: {formatCurrency(total)}</p>
+        <p className="text-xs text-black/40">
+          {items.length} producto{items.length === 1 ? '' : 's'}
+        </p>
+      </div>
+    </div>
+  )
 }
 
 function ExpenseDetail() {
@@ -40,6 +150,7 @@ function ExpenseDetail() {
   )
   const expenseCategories = useLiveQuery(() => db.expenseCategories.orderBy('name').toArray(), [])
   const stores = useLiveQuery(() => db.stores.orderBy('name').toArray(), [])
+  const finalizations = useLiveQuery(() => db.monthFinalizations.toArray(), [])
 
   const [fecha, setFecha] = useState('')
   const [currency, setCurrency] = useState('')
@@ -78,7 +189,18 @@ function ExpenseDetail() {
   // El botón atrás del teléfono cierra el visor de la foto en vez de irse a Gastos.
   useModalBack(viewerOpen, () => setViewerOpen(false))
 
-  if (!expense) return null
+  if (!expense || finalizations === undefined) return null
+
+  if (isMonthFinalized(expense.fecha.slice(0, 7), finalizations)) {
+    return (
+      <ReadOnlyExpenseDetail
+        expense={expense}
+        items={dbItems ?? []}
+        categories={expenseCategories ?? []}
+        stores={stores ?? []}
+      />
+    )
+  }
 
   async function handleCreateCategory(name: string, icon: string) {
     const existingId = findExistingCategoryId(expenseCategories ?? [], name)

@@ -690,6 +690,53 @@ class FinasuDB extends Dexie {
       projectSubItems: 'id, itemId',
     })
 
+    // v24: los tickets (Expense) de un mes ya cerrado ahora también se tratan
+    // como los límites — de solo lectura, escondidos en Otros meses (ver
+    // isMonthFinalized). La migración de v22 solo creó MonthFinalization
+    // para meses que tenían ingreso o límite guardado; un mes pasado donde
+    // solo se escanearon tickets (sin nunca usar límites) se habría quedado
+    // SIN fila de cierre, y sus tickets viejos nunca se habrían escondido.
+    // Aquí se completa: cualquier mes pasado con al menos un ticket, que
+    // todavía no tenga su fila de cierre, la recibe ahora.
+    this.version(24).stores({
+      products: 'id, name, categoryId',
+      priceEntries: 'id, productId, store',
+      categories: 'id, name',
+      expenses: 'id, status, capturedAt',
+      expenseItems: 'id, expenseId, categoryId',
+      expenseCategories: 'id, name',
+      categoryLimits: 'id, categoryId, monthKey',
+      savingsGoals: 'id, name',
+      savingsDeposits: 'id, goalId, periodIndex',
+      futureExpenses: 'id, fechaObjetivo',
+      settings: 'id',
+      monthlyIncomes: 'id, monthKey',
+      savingsGoalDeletions: 'id, deletedAt',
+      projects: 'id, name',
+      projectItems: 'id, projectId, purchased',
+      projectPriceEntries: 'id, projectItemId, store',
+      stores: 'id, name',
+      creditCards: 'id, name',
+      creditCardPayments: 'id, cardId, date',
+      monthFinalizations: 'monthKey',
+      projectSubItems: 'id, itemId',
+    }).upgrade(async (tx) => {
+      const now = new Date()
+      const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+
+      const expenses = await tx.table('expenses').toArray()
+      const existing = await tx.table('monthFinalizations').toArray()
+      const alreadyFinalized = new Set(existing.map((f: { monthKey: string }) => f.monthKey))
+
+      const monthKeys = new Set<string>(expenses.map((e: { fecha: string }) => e.fecha.slice(0, 7)))
+      const finalizedAt = Date.now()
+      for (const monthKey of monthKeys) {
+        if (monthKey >= currentMonthKey) continue
+        if (alreadyFinalized.has(monthKey)) continue
+        await tx.table('monthFinalizations').put({ monthKey, finalizedAt })
+      }
+    })
+
     this.cloud.configure({
       databaseUrl: DEXIE_CLOUD_URL,
       requireAuth: true,

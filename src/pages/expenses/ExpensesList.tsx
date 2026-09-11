@@ -6,6 +6,7 @@ import { DatePicker } from '../../components/DatePicker'
 import { PAGE_SIZE, Pagination } from '../../components/Pagination'
 import { SwipeableRow } from '../../components/SwipeableRow'
 import { getCategoryAlerts } from '../../lib/budget'
+import { isMonthFinalized } from '../../lib/categoryLimits'
 import { db } from '../../lib/db'
 import { formatFechaCorta } from '../../lib/date'
 import { monthKeyWithOffset } from '../../lib/summary'
@@ -77,6 +78,7 @@ function ExpensesList() {
   )
   const items = useLiveQuery(() => db.expenseItems.toArray(), [])
   const stores = useLiveQuery(() => db.stores.toArray(), [])
+  const finalizations = useLiveQuery(() => db.monthFinalizations.toArray(), [])
 
   const [merchantQuery, setMerchantQuery] = useState('')
   const [maxPrice, setMaxPrice] = useState('')
@@ -94,7 +96,15 @@ function ExpensesList() {
       .reduce((sum, i) => sum + i.monto, 0)
   }
 
-  const filtered = (expenses ?? []).filter((e) => {
+  // Los tickets de un mes ya cerrado (ver MonthFinalization) se esconden de
+  // aquí — igual que los límites, viven de solo lectura en "Otros meses"
+  // para no estorbar entre lo del mes en curso.
+  const activeExpenses = (expenses ?? []).filter(
+    (e) => !isMonthFinalized(e.fecha.slice(0, 7), finalizations ?? []),
+  )
+  const hiddenCount = (expenses ?? []).length - activeExpenses.length
+
+  const filtered = activeExpenses.filter((e) => {
     if (merchantQuery.trim() && !e.merchant?.toLowerCase().includes(merchantQuery.trim().toLowerCase())) return false
     if (maxPrice.trim() && totalFor(e) >= Number(maxPrice)) return false
     if (dateFilter && e.fecha !== dateFilter) return false
@@ -146,14 +156,31 @@ function ExpensesList() {
           >
             ✍️ Agregar a mano
           </Link>
+          {hiddenCount > 0 && (
+            <Link
+              to="/gastos/categorias/otros-meses"
+              className="rounded-full border border-black/15 bg-white/60 px-4 py-2.5 text-sm font-semibold text-black/60 transition hover:bg-black/5"
+            >
+              🗂️ Otros meses ({hiddenCount})
+            </Link>
+          )}
         </div>
       </div>
 
       <BudgetAlerts />
 
-      {expenses === undefined ? null : expenses.length === 0 ? (
+      {expenses === undefined ? null : activeExpenses.length === 0 ? (
         <div className="mt-10 rounded-2xl border border-dashed border-black/15 p-10 text-center text-black/50">
-          Aún no has escaneado ningún ticket.
+          {expenses.length === 0 ? (
+            'Aún no has escaneado ningún ticket.'
+          ) : (
+            <>
+              Los tickets de este mes ya se guardaron definitivamente.{' '}
+              <Link to="/gastos/categorias/otros-meses" className="underline hover:text-black/70">
+                Ver en Otros meses →
+              </Link>
+            </>
+          )}
         </div>
       ) : (
         <>
@@ -267,7 +294,22 @@ function ExpensesList() {
   )
 }
 
-function ExpenseRows({ expenses, items, stores }: { expenses: Expense[]; items: ExpenseItem[]; stores: Store[] }) {
+/**
+ * readOnly=true (para meses ya cerrados, ver OtherMonths): la fila no se
+ * envuelve en SwipeableRow — un ticket de un mes cerrado no se puede
+ * eliminar, así que no tiene caso ofrecer el gesto.
+ */
+export function ExpenseRows({
+  expenses,
+  items,
+  stores,
+  readOnly = false,
+}: {
+  expenses: Expense[]
+  items: ExpenseItem[]
+  stores: Store[]
+  readOnly?: boolean
+}) {
   const confirm = useConfirm()
 
   async function handleDeleteExpense(expenseId: string) {
@@ -294,56 +336,58 @@ function ExpenseRows({ expenses, items, stores }: { expenses: Expense[]; items: 
             ? `${expenseItems[0].nombre}${expenseItems.length > 1 ? ` y ${expenseItems.length - 1} más` : ''}`
             : null)
 
-        return (
-          <li key={expense.id}>
-            <SwipeableRow onDelete={() => handleDeleteExpense(expense.id)}>
-              <Link
-                to={`/gastos/${expense.id}`}
-                className="flex items-center gap-3 rounded-xl border border-black/10 bg-white/60 p-3 transition hover:-translate-y-0.5 hover:shadow-sm"
-              >
-                <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-black/5">
-                  {expense.image && <img src={expense.image} alt="" className="h-full w-full object-cover" />}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="flex min-w-0 items-center gap-1.5 font-medium">
-                    <span className="shrink-0">{formatFechaCorta(expense.fecha)}</span>
-                    {store ? (
-                      <>
-                        <span className="shrink-0 font-normal text-black/40" aria-hidden>
-                          ·
-                        </span>
-                        {store.image ? (
-                          <img src={store.image} alt="" className="h-4 w-4 shrink-0 rounded object-cover" />
-                        ) : (
-                          <span className="shrink-0 text-sm" aria-hidden>
-                            {store.icon}
-                          </span>
-                        )}
-                        <span className="truncate font-normal text-black/50">{store.name}</span>
-                      </>
-                    ) : subtitle ? (
-                      <>
-                        <span className="shrink-0 font-normal text-black/40" aria-hidden>
-                          ·
-                        </span>
-                        <span className="truncate font-normal text-black/50">{subtitle}</span>
-                      </>
-                    ) : null}
-                  </p>
-                  <div className="mt-1 flex items-center gap-2">
-                    <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLE[expense.status]}`}>
-                      {STATUS_LABEL[expense.status]}
+        const content = (
+          <Link
+            to={`/gastos/${expense.id}`}
+            className="flex items-center gap-3 rounded-xl border border-black/10 bg-white/60 p-3 transition hover:-translate-y-0.5 hover:shadow-sm"
+          >
+            <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-black/5">
+              {expense.image && <img src={expense.image} alt="" className="h-full w-full object-cover" />}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="flex min-w-0 items-center gap-1.5 font-medium">
+                <span className="shrink-0">{formatFechaCorta(expense.fecha)}</span>
+                {store ? (
+                  <>
+                    <span className="shrink-0 font-normal text-black/40" aria-hidden>
+                      ·
                     </span>
-                    {expenseItems.length > 0 && (
-                      <span className="text-xs text-black/45">
-                        {categorizedCount}/{expenseItems.length} productos
+                    {store.image ? (
+                      <img src={store.image} alt="" className="h-4 w-4 shrink-0 rounded object-cover" />
+                    ) : (
+                      <span className="shrink-0 text-sm" aria-hidden>
+                        {store.icon}
                       </span>
                     )}
-                  </div>
-                </div>
-                {total > 0 && <p className="shrink-0 font-display font-semibold">{formatCurrency(total)}</p>}
-              </Link>
-            </SwipeableRow>
+                    <span className="truncate font-normal text-black/50">{store.name}</span>
+                  </>
+                ) : subtitle ? (
+                  <>
+                    <span className="shrink-0 font-normal text-black/40" aria-hidden>
+                      ·
+                    </span>
+                    <span className="truncate font-normal text-black/50">{subtitle}</span>
+                  </>
+                ) : null}
+              </p>
+              <div className="mt-1 flex items-center gap-2">
+                <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLE[expense.status]}`}>
+                  {STATUS_LABEL[expense.status]}
+                </span>
+                {expenseItems.length > 0 && (
+                  <span className="text-xs text-black/45">
+                    {categorizedCount}/{expenseItems.length} productos
+                  </span>
+                )}
+              </div>
+            </div>
+            {total > 0 && <p className="shrink-0 font-display font-semibold">{formatCurrency(total)}</p>}
+          </Link>
+        )
+
+        return (
+          <li key={expense.id}>
+            {readOnly ? content : <SwipeableRow onDelete={() => handleDeleteExpense(expense.id)}>{content}</SwipeableRow>}
           </li>
         )
       })}
